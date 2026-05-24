@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: CD
 
 on:
   push:
@@ -13,10 +13,12 @@ env:
   REGISTRY: ghcr.io
   API_IMAGE: ghcr.io/callmeeric5/distillation-studio-api
   FRONTEND_IMAGE: ghcr.io/callmeeric5/distillation-studio-frontend
-  DEPLOY_DIR: /opt/distillation-studio
+  DEPLOY_DIR: /home/ubuntu/distillation-studio
+  IMAGE_PLATFORM: linux/arm64
 
 jobs:
-  build-and-deploy:
+  deploy:
+    name: Build, publish, and deploy
     runs-on: ubuntu-latest
 
     steps:
@@ -28,25 +30,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Lint frontend
-        working-directory: frontend
-        run: npm run lint
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -60,7 +43,7 @@ jobs:
         with:
           context: .
           file: ./api/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.IMAGE_PLATFORM }}
           push: true
           tags: |
             ${{ env.API_IMAGE }}:${{ github.sha }}
@@ -73,7 +56,7 @@ jobs:
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.IMAGE_PLATFORM }}
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
@@ -90,17 +73,27 @@ jobs:
 
       - name: Upload Compose file
         run: |
-          ssh -i ~/.ssh/deploy_key "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "mkdir -p ${{ env.DEPLOY_DIR }}"
+          ssh -i ~/.ssh/deploy_key "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "mkdir -p '${{ env.DEPLOY_DIR }}'"
           scp -i ~/.ssh/deploy_key docker-compose.yml "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ env.DEPLOY_DIR }}/docker-compose.yml"
 
       - name: Deploy on Oracle server
         run: |
           ssh -i ~/.ssh/deploy_key "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" << 'EOF'
           set -eu
-          cd /opt/distillation-studio
-          printf 'IMAGE_TAG=%s\n' "${{ github.sha }}" > .env
-          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker compose pull
-          docker compose up -d --remove-orphans
+          cd '${{ env.DEPLOY_DIR }}'
+          printf 'IMAGE_TAG=%s\n' '${{ github.sha }}' > .env
+          echo '${{ github.token }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE='docker compose'
+          elif command -v docker-compose >/dev/null 2>&1; then
+            COMPOSE='docker-compose'
+          else
+            echo 'Docker Compose is not installed on the server.'
+            echo 'Install it once on Ubuntu with: sudo apt-get update && sudo apt-get install -y docker-compose-plugin'
+            echo 'If that package is unavailable, try: sudo apt-get install -y docker-compose-v2'
+            exit 1
+          fi
+          $COMPOSE pull
+          $COMPOSE up -d --remove-orphans
           docker image prune -f
           EOF

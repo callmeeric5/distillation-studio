@@ -16,7 +16,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /opt/distillation-studio/certs:/etc/nginx/certs:ro
+      - /home/ubuntu/distillation-studio/certs:/etc/nginx/certs:ro
     networks:
       - distillation
 
