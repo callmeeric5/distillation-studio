@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.env.*
+.venv
+__pycache__
+*.py[cod]
+
+backend/push_swap/*.o
+backend/push_swap/*.d
+backend/push_swap/push_swap
+backend/push_swap/checker_os
+backend/push_swap/.!*checker_os
+backend/push_swap/bench.txt
+backend/push_swap/args.txt
+
+*.log

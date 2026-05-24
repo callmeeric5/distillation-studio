@@ -1,0 +1,30 @@
+.DS_Store
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+.vite-temp/
+
+# C build output
+*.o
+*.d
+backend/push_swap/push_swap
+backend/push_swap/checker_os
+backend/push_swap/.!*checker_os
+
+# Logs and temp files
+*.log
+tmp/
+temp/

@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./api/Dockerfile
+    image: distillation-studio-api:local
+    restart: unless-stopped
+    expose:
+      - "8000"
+    networks:
+      - distillation
+
+  frontend:
+    build:
+      context: ./frontend
+    image: distillation-studio-frontend:local
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend/nginx/local.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - distillation
+
+networks:
+  distillation:
+    driver: bridge

@@ -1,0 +1,25 @@
+services:
+  api:
+    image: ghcr.io/callmeeric5/distillation-studio-api:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    expose:
+      - "8000"
+    networks:
+      - distillation
+
+  frontend:
+    image: ghcr.io/callmeeric5/distillation-studio-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/distillation-studio/certs:/etc/nginx/certs:ro
+    networks:
+      - distillation
+
+networks:
+  distillation:
+    driver: bridge
