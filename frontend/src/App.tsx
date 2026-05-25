@@ -118,7 +118,7 @@ const statusStyles: Record<RunState["status"], string> = {
 
 const projectStatusStyles: Record<ProjectStatus, string> = {
     ready: "bg-[#e8eee0] text-[#415234] ring-[#cfd8c4]",
-    "coming soon": "bg-[#ede9dd] text-[#625e55] ring-[#ddd7c9]",
+    "coming soon": "bg-[#dfe8f0] text-[#36546d] ring-[#c9d7e2]",
     "in progress": "bg-[#f3dfd2] text-[#8a4429] ring-[#e4c2ae]",
 };
 
@@ -508,12 +508,12 @@ function GalleryCard({
                     </h3>
                 </div>
 
-                <p className="line-clamp-4 text-base leading-7 text-[#5e5d59]">
+                <p className="min-h-[84px] line-clamp-4 text-base leading-7 text-[#5e5d59]">
                     {project.description}
                 </p>
 
                 <div
-                    className="flex flex-wrap gap-2"
+                    className="flex min-h-[48px] flex-wrap content-start gap-2"
                     aria-label={`${project.title} tags`}
                 >
                     {project.tags.map((tag) => (
@@ -531,7 +531,7 @@ function GalleryCard({
                     onClick={() => onTryProject(project)}
                     type="button"
                 >
-                    {project.endpoint ? "Try it out" : "Open project"}
+                    Try it out
                 </button>
             </div>
         </article>

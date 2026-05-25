@@ -88,7 +88,11 @@ button:disabled {
 }
 
 .theme-dark [class*="bg-[#ede9dd]"] {
-  background-color: #38342f !important;
+  background-color: #243241 !important;
+}
+
+.theme-dark [class*="bg-[#dfe8f0]"] {
+  background-color: #263746 !important;
 }
 
 .theme-dark [class*="bg-[#e8eee0]"] {
@@ -135,6 +139,10 @@ button:disabled {
   color: #a9c59a !important;
 }
 
+.theme-dark [class*="text-[#36546d]"] {
+  color: #9fbad0 !important;
+}
+
 .theme-dark [class*="border-[#ece8dc]"],
 .theme-dark [class*="border-[#e8e3d6]"],
 .theme-dark [class*="border-[#ded8ca]"],
@@ -148,7 +156,8 @@ button:disabled {
 
 .theme-dark [class*="ring-[#cfd8c4]"],
 .theme-dark [class*="ring-[#ddd7c9]"],
-.theme-dark [class*="ring-[#e4c2ae]"] {
+.theme-dark [class*="ring-[#e4c2ae]"],
+.theme-dark [class*="ring-[#c9d7e2]"] {
   --tw-ring-color: #4b4239 !important;
 }
 
