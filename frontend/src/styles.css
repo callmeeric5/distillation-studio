@@ -175,3 +175,25 @@ button:disabled {
   background-color: #211f1d !important;
   color: #f1c27d !important;
 }
+
+.maze-marker {
+  align-items: center;
+  border: 1px solid rgb(255 253 248 / 0.82);
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.28);
+  display: inline-flex;
+  font-size: clamp(8px, 0.72vw, 13px);
+  font-weight: 800;
+  height: min(78%, 22px);
+  justify-content: center;
+  line-height: 1;
+  min-height: 11px;
+  min-width: 11px;
+  pointer-events: none;
+  width: min(78%, 22px);
+}
+
+.theme-dark .maze-marker {
+  border-color: rgb(244 239 230 / 0.84);
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.45);
+}

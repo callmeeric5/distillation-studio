@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { AMazeIngStudio } from "./AMazeIngStudio";
 import { PushSwapStudio } from "./PushSwapStudio";
 import mazeCover from "./assets/a-maze-ing-cover.png";
 import logo from "./assets/logo.png";
@@ -39,11 +40,12 @@ const projects42: Project[] = [
         title: "A_Maze_Ing",
         category: "42 project",
         language: "Common Core / python",
-        status: "coming soon",
+        status: "ready",
         description:
-            "A maze project space planned for clearer browser notes, examples, and visual explanations.",
+            "An interactive maze project for generating, solving, and replaying maze algorithms in the browser.",
         fullDescription:
-            "A_Maze_Ing will become a readable project page for maze generation and solving ideas. For now it is marked as coming soon while the write-up and runnable presentation are being prepared.",
+            "A_Maze_Ing turns maze generation and solving into an interactive study surface. Configure the dimensions, entry, exit, 42 pattern, generation strategy, solver, seed, and visual theme, then watch the maze carve and solve itself step by step.",
+        endpoint: "/api/projects/a-maze-ing/run",
         coverImage: mazeCover,
         slug: "a-maze-ing",
         routeSlug: "a_maze_ing",
@@ -554,6 +556,16 @@ function ProjectPage({
     if (project.slug === "push-swap") {
         return (
             <PushSwapStudio
+                description={project.description}
+                fullDescription={project.fullDescription}
+                onBack={onBack}
+            />
+        );
+    }
+
+    if (project.slug === "a-maze-ing") {
+        return (
+            <AMazeIngStudio
                 description={project.description}
                 fullDescription={project.fullDescription}
                 onBack={onBack}

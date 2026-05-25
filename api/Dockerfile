@@ -26,10 +26,12 @@ RUN pip install --no-cache-dir --upgrade pip \
   && pip install --no-cache-dir -r requirements.txt
 
 COPY api/ ./api/
+COPY backend/a-maze-ing/ ./backend/a-maze-ing/
 RUN mkdir -p ./backend/push_swap
 COPY --from=builder /build/backend/push_swap/push_swap ./backend/push_swap/push_swap
 
-RUN chmod +x ./backend/push_swap/push_swap \
+RUN find ./backend/a-maze-ing -type d -name __pycache__ -prune -exec rm -rf {} + \
+  && chmod +x ./backend/push_swap/push_swap \
   && chown -R app:app /app
 
 USER app
