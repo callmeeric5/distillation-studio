@@ -4,28 +4,19 @@ import random
 import subprocess
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import HTTPException
 
 
-ROOT = Path(__file__).resolve().parent
-PUSH_SWAP_DIR = ROOT.parent / "backend" / "push_swap"
+ROOT = Path(__file__).resolve().parents[3]
+PUSH_SWAP_DIR = ROOT / "backend" / "push_swap"
 PUSH_SWAP_BIN = PUSH_SWAP_DIR / "push_swap"
 ALGORITHMS = {"simple", "medium", "complex", "adaptive"}
-MAX_VALUES = 500
-
-app = FastAPI(title="Distillation Studio API")
 
 
-class RunRequest(BaseModel):
-    values: list[int] = Field(..., min_length=1, max_length=MAX_VALUES)
-    algorithm: str = "medium"
-
-
-class GenerateRequest(BaseModel):
-    size: int = Field(20, ge=2, le=MAX_VALUES)
-    minimum: int = Field(-250, ge=-100000)
-    maximum: int = Field(250, le=100000)
+def generate_unique_values(size: int, minimum: int, maximum: int) -> list[int]:
+    if maximum - minimum + 1 < size:
+        raise HTTPException(status_code=400, detail="Range is too small for unique values.")
+    return random.sample(range(minimum, maximum + 1), size)
 
 
 def validate_values(values: list[int]) -> None:
@@ -72,22 +63,3 @@ def run_push_swap(values: list[int], algorithm: str) -> list[str]:
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr.strip() or "push_swap failed.")
     return [line for line in result.stdout.splitlines() if line]
-
-
-@app.post("/api/projects/push-swap/run")
-def run_sort(request: RunRequest) -> dict:
-    moves = run_push_swap(request.values, request.algorithm)
-    return {
-        "values": request.values,
-        "algorithm": request.algorithm,
-        "moves": moves,
-        "move_count": len(moves),
-    }
-
-
-@app.post("/api/projects/push-swap/generate")
-def generate_values(request: GenerateRequest) -> dict:
-    if request.maximum - request.minimum + 1 < request.size:
-        raise HTTPException(status_code=400, detail="Range is too small for unique values.")
-    values = random.sample(range(request.minimum, request.maximum + 1), request.size)
-    return {"values": values}

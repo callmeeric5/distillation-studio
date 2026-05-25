@@ -28,3 +28,5 @@ backend/push_swap/.!*checker_os
 *.log
 tmp/
 temp/
+
+AGENTS.md

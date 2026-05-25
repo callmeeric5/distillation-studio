@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { PushSwapStudio } from "./PushSwapStudio";
 import mazeCover from "./assets/a-maze-ing-cover.png";
 import logo from "./assets/logo.png";
@@ -16,9 +16,10 @@ type Project = {
     status: ProjectStatus;
     description: string;
     fullDescription?: string;
-    endpoint: string;
+    endpoint?: string;
     coverImage?: string;
     slug: string;
+    routeSlug: string;
     tags: string[];
 };
 
@@ -37,68 +38,69 @@ const projects42: Project[] = [
     {
         title: "A_Maze_Ing",
         category: "42 project",
-        language: "C / FastAPI bridge",
-        status: "ready",
+        language: "Common Core / python",
+        status: "coming soon",
         description:
-            "A runnable maze project space prepared for launching the backend, inspecting results, and presenting the algorithm clearly in the browser.",
+            "A maze project space planned for clearer browser notes, examples, and visual explanations.",
         fullDescription:
-            "A_Maze_Ing turns a maze-solving systems project into a browser-readable experiment. The detail view is meant to explain how the C project is executed through the shared FastAPI backend, how input and output can be inspected, and how algorithm behavior can be presented without leaving the portfolio.",
-        endpoint: "/api/projects/a-maze-ing/run",
+            "A_Maze_Ing will become a readable project page for maze generation and solving ideas. For now it is marked as coming soon while the write-up and runnable presentation are being prepared.",
         coverImage: mazeCover,
         slug: "a-maze-ing",
+        routeSlug: "a_maze_ing",
         tags: ["maze", "algorithm", "runner"],
     },
     {
-        title: "Minishell",
+        title: "Pacman",
         category: "42 project",
-        language: "C / FastAPI bridge",
+        language: "Common Core / c",
         status: "in progress",
         description:
-            "A shell implementation project focused on parsing commands, process control, pipes, redirection, and Unix behavior.",
+            "A game-oriented C project planned as a compact arcade-style entry in the 42 collection.",
         fullDescription:
-            "Minishell is a Unix shell implementation focused on parsing, process control, pipes, redirection, environment handling, and the small behavioral details that make command execution feel predictable.",
-        endpoint: "/api/projects/minishell/run",
-        slug: "minishell",
-        tags: ["shell", "unix", "parser"],
+            "Pacman is listed as in progress while the project materials are being prepared. The detail page will collect the goal, implementation notes, and any runnable or visual pieces once they are ready.",
+        slug: "pacman",
+        routeSlug: "pacman",
+        tags: ["game", "maps", "graphics"],
     },
     {
-        title: "Cub3D",
+        title: "Flyin",
         category: "42 project",
-        language: "C / FastAPI bridge",
+        language: "Common Core / c",
         status: "in progress",
         description:
-            "A raycasting project inspired by classic 3D rendering, prepared for visual demos and map-based experiments.",
+            "A work-in-progress 42 project entry reserved for notes, implementation details, and demos.",
         fullDescription:
-            "Cub3D is a raycasting graphics project for exploring map parsing, player movement, wall projection, texture handling, and browser-friendly visual demos around a classic 3D rendering pipeline.",
-        endpoint: "/api/projects/cub3d/run",
-        slug: "cub3d",
-        tags: ["raycasting", "graphics", "maps"],
+            "Flyin is currently in progress. This page will become the place for the project description, technical notes, and any browser-friendly output once the implementation is ready to present.",
+        slug: "flyin",
+        routeSlug: "flyin",
+        tags: ["42", "systems", "demo"],
     },
     {
-        title: "Philosophers",
+        title: "Call_Me_Maybe",
         category: "42 project",
-        language: "C / FastAPI bridge",
+        language: "Common Core / c",
         status: "in progress",
         description:
-            "A concurrency project for exploring threads, timing, shared resources, and deadlock-safe execution.",
+            "A planned 42 project page for collecting the project story, implementation notes, and final result.",
         fullDescription:
-            "Philosophers is a concurrency project centered on threads, timing, shared resources, and deadlock-safe coordination. The project page is designed to make run state and timing behavior easier to inspect.",
-        endpoint: "/api/projects/philosophers/run",
-        slug: "philosophers",
-        tags: ["threads", "concurrency", "timing"],
+            "Call_Me_Maybe is listed as in progress while the project is being prepared for the portfolio. The page will stay non-runnable until there is a stable implementation or demo to connect.",
+        slug: "call-me-maybe",
+        routeSlug: "call_me_maybe",
+        tags: ["42", "notes", "demo"],
     },
     {
-        title: "Push_swap",
+        title: "Push_Swap",
         category: "42 project",
-        language: "C / FastAPI bridge",
+        language: "Common Core / c",
         status: "ready",
         description:
             "A sorting algorithm project built around constrained stack operations and move-count optimization.",
         fullDescription:
-            "Push_swap explores how to sort integer inputs using only a constrained set of stack operations. The interactive page generates inputs, sends them to the shared FastAPI backend, runs the C binary, then replays the returned operations so move count, stack state, and algorithm behavior can be inspected step by step.",
+            "Push_Swap explores how to sort integer inputs using only a constrained set of stack operations. The interactive page generates inputs, sends them to the shared FastAPI backend, runs the C binary, then replays the returned operations so move count, stack state, and algorithm behavior can be inspected step by step.",
         endpoint: "/api/projects/push-swap/run",
         coverImage: pushSwapCover,
         slug: "push-swap",
+        routeSlug: "push_swap",
         tags: ["sorting", "stacks", "optimization"],
     },
 ];
@@ -120,19 +122,116 @@ const projectStatusStyles: Record<ProjectStatus, string> = {
     "in progress": "bg-[#f3dfd2] text-[#8a4429] ring-[#e4c2ae]",
 };
 
+type RouteState = {
+    activeTab: TabKey;
+    selectedProject: Project | null;
+    title: string;
+};
+
+const allProjects = [...projects42, ...funProjects];
+
+function getProjectPath(project: Project) {
+    return `/projects/42projects/${project.routeSlug}`;
+}
+
+function readRoute(): RouteState {
+    const path = window.location.pathname.replace(/\/+$/, "") || "/";
+    const projectMatch = path.match(/^\/projects\/42projects\/([^/]+)$/);
+    const selectedProject = projectMatch
+        ? allProjects.find((project) => project.routeSlug === projectMatch[1])
+        : null;
+
+    if (selectedProject) {
+        return {
+            activeTab: "projects42",
+            selectedProject,
+            title: selectedProject.title,
+        };
+    }
+
+    if (path === "/projects") {
+        return {
+            activeTab: "projects42",
+            selectedProject: null,
+            title: "Projects",
+        };
+    }
+
+    if (path === "/about") {
+        return { activeTab: "about", selectedProject: null, title: "About" };
+    }
+
+    if (path === "/projects/fun") {
+        return {
+            activeTab: "fun",
+            selectedProject: null,
+            title: "Fun projects",
+        };
+    }
+
+    return { activeTab: "projects42", selectedProject: null, title: "Home" };
+}
+
 function App() {
-    const [activeTab, setActiveTab] = useState<TabKey>("projects42");
-    const [selectedProject, setSelectedProject] = useState<Project | null>(
-        null,
-    );
+    const [routeState, setRouteState] = useState<RouteState>(() => readRoute());
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [runStates, setRunStates] = useState<Record<string, RunState>>({});
+    const [theme, setTheme] = useState<"light" | "dark">(() =>
+        window.localStorage.getItem("theme") === "dark" ? "dark" : "light",
+    );
+    const { activeTab, selectedProject } = routeState;
     const activeLabel = useMemo(
         () => tabs.find((tab) => tab.key === activeTab)?.label ?? tabs[0].label,
         [activeTab],
     );
 
+    useEffect(() => {
+        document.title = routeState.title;
+    }, [routeState.title]);
+
+    useEffect(() => {
+        document.documentElement.dataset.theme = theme;
+        window.localStorage.setItem("theme", theme);
+    }, [theme]);
+
+    useEffect(() => {
+        function syncRoute() {
+            setRouteState(readRoute());
+            setStatusFilter("all");
+        }
+
+        window.addEventListener("popstate", syncRoute);
+        return () => window.removeEventListener("popstate", syncRoute);
+    }, []);
+
+    function navigate(path: string) {
+        if (window.location.pathname !== path) {
+            window.history.pushState(null, "", path);
+        }
+        setRouteState(readRoute());
+        setStatusFilter("all");
+    }
+
+    function selectTab(tab: TabKey) {
+        const paths: Record<TabKey, string> = {
+            about: "/about",
+            fun: "/projects/fun",
+            projects42: "/projects",
+        };
+        navigate(paths[tab]);
+    }
+
+    function selectProject(project: Project) {
+        navigate(getProjectPath(project));
+    }
+
+    function toggleTheme() {
+        setTheme((current) => (current === "dark" ? "light" : "dark"));
+    }
+
     async function runProject(project: Project) {
+        if (!project.endpoint) return;
+
         setRunStates((current) => ({
             ...current,
             [project.title]: {
@@ -169,7 +268,11 @@ function App() {
     }
 
     return (
-        <main className="min-h-screen bg-[#faf9f5] text-[#171715]">
+        <main
+            className={`min-h-screen bg-[#faf9f5] text-[#171715] ${
+                theme === "dark" ? "theme-dark" : ""
+            }`}
+        >
             <div className="mx-auto flex w-full max-w-7xl flex-col px-5 py-5 sm:px-8 lg:px-10">
                 <header className="sticky top-0 z-10 -mx-5 mb-10 border-b border-[#ece8dc] bg-[#faf9f5]/95 px-5 py-4 backdrop-blur sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10">
                     <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
@@ -203,15 +306,30 @@ function App() {
                                     }`}
                                     key={tab.key}
                                     onClick={() => {
-                                        setActiveTab(tab.key);
-                                        setSelectedProject(null);
-                                        setStatusFilter("all");
+                                        selectTab(tab.key);
                                     }}
                                     type="button"
                                 >
                                     {tab.label}
                                 </button>
                             ))}
+                            <button
+                                aria-label={
+                                    theme === "dark"
+                                        ? "Switch to day mode"
+                                        : "Switch to night mode"
+                                }
+                                className="theme-toggle flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-lg border border-[#e8e3d6] bg-[#faf9f5] text-lg font-semibold text-[#5e5d59] transition hover:bg-white hover:text-[#171715]"
+                                onClick={toggleTheme}
+                                title={
+                                    theme === "dark"
+                                        ? "Switch to day mode"
+                                        : "Switch to night mode"
+                                }
+                                type="button"
+                            >
+                                {theme === "dark" ? "☀" : "☾"}
+                            </button>
                         </nav>
                     </div>
                 </header>
@@ -248,7 +366,7 @@ function App() {
 
                     {selectedProject ? (
                         <ProjectPage
-                            onBack={() => setSelectedProject(null)}
+                            onBack={() => navigate("/projects")}
                             onRunProject={runProject}
                             project={selectedProject}
                             runState={
@@ -262,7 +380,7 @@ function App() {
 
                     {!selectedProject && activeTab === "projects42" && (
                         <ProjectGallery
-                            onTryProject={setSelectedProject}
+                            onTryProject={selectProject}
                             projects={projects42}
                             statusFilter={statusFilter}
                             onStatusFilterChange={setStatusFilter}
@@ -270,7 +388,7 @@ function App() {
                     )}
                     {!selectedProject && activeTab === "fun" && (
                         <FunProjectsPlaceholder
-                            onTryProject={setSelectedProject}
+                            onTryProject={selectProject}
                             projects={funProjects}
                         />
                     )}
@@ -413,7 +531,7 @@ function GalleryCard({
                     onClick={() => onTryProject(project)}
                     type="button"
                 >
-                    Try it out
+                    {project.endpoint ? "Try it out" : "Open project"}
                 </button>
             </div>
         </article>
@@ -431,6 +549,8 @@ function ProjectPage({
     project: Project;
     runState: RunState;
 }) {
+    const isRunnable = Boolean(project.endpoint);
+
     if (project.slug === "push-swap") {
         return (
             <PushSwapStudio
@@ -481,7 +601,7 @@ function ProjectPage({
                 <div className="flex flex-col gap-6">
                     <div>
                         <p className="text-sm font-semibold text-[#c96442]">
-                            Project runner
+                            {isRunnable ? "Project runner" : "Project notes"}
                         </p>
                         <CollapsibleDescription
                             className="mt-3"
@@ -503,10 +623,17 @@ function ProjectPage({
                         </div>
                         <div className="rounded-xl border border-[#e8e3d6] bg-[#f4f1e8] p-4">
                             <dt className="text-xs font-bold uppercase text-[#8b8174]">
-                                API route
+                                {isRunnable ? "API route" : "Availability"}
                             </dt>
-                            <dd className="mt-1 break-all font-mono text-sm text-[#8a4429]">
-                                {project.endpoint}
+                            <dd
+                                className={`mt-1 break-words text-sm ${
+                                    isRunnable
+                                        ? "font-mono text-[#8a4429]"
+                                        : "font-semibold text-[#5e5d59]"
+                                }`}
+                            >
+                                {project.endpoint ??
+                                    "This page is prepared for notes and progress. A runner will be connected when the project is ready."}
                             </dd>
                         </div>
                     </dl>
@@ -525,22 +652,32 @@ function ProjectPage({
                         ))}
                     </div>
 
-                    <button
-                        className="min-h-12 w-fit rounded-lg bg-[#c96442] px-6 text-sm font-semibold text-[#faf9f5] transition hover:bg-[#b65334] disabled:cursor-wait disabled:opacity-60"
-                        disabled={runState.status === "running"}
-                        onClick={() => onRunProject(project)}
-                        type="button"
-                    >
-                        {runState.status === "running"
-                            ? "Running..."
-                            : "Run project"}
-                    </button>
+                    {isRunnable ? (
+                        <>
+                            <button
+                                className="min-h-12 w-fit rounded-lg bg-[#c96442] px-6 text-sm font-semibold text-[#faf9f5] transition hover:bg-[#b65334] disabled:cursor-wait disabled:opacity-60"
+                                disabled={runState.status === "running"}
+                                onClick={() => onRunProject(project)}
+                                type="button"
+                            >
+                                {runState.status === "running"
+                                    ? "Running..."
+                                    : "Run project"}
+                            </button>
 
-                    <output
-                        className={`block min-h-24 whitespace-pre-wrap break-words rounded-xl border p-4 font-mono text-sm ${statusStyles[runState.status]}`}
-                    >
-                        {runState.message}
-                    </output>
+                            <output
+                                className={`block min-h-24 whitespace-pre-wrap break-words rounded-xl border p-4 font-mono text-sm ${statusStyles[runState.status]}`}
+                            >
+                                {runState.message}
+                            </output>
+                        </>
+                    ) : (
+                        <div className="rounded-xl border border-[#e8e3d6] bg-[#f4f1e8] p-4 text-base leading-7 text-[#5e5d59]">
+                            This project is not runnable yet. It stays in the
+                            portfolio as a progress marker until there is a
+                            stable demo or write-up to connect.
+                        </div>
+                    )}
                 </div>
             </div>
         </article>

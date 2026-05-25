@@ -15,7 +15,7 @@ From the repository root:
 ```
 python3 -m venv api/.venv
 uv pip install --python api/.venv/bin/python -r api/requirements.txt
-api/.venv/bin/uvicorn api.app:app --host 127.0.0.1 --port 8000
+api/.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
 Open the frontend app and use the Push_swap project page to paste an input, generate a random unique input, choose `simple`, `medium`, or `complex`, then animate the generated operations across stacks A and B.
