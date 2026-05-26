@@ -8,6 +8,9 @@
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .venv/
 venv/
 
@@ -23,6 +26,8 @@ dist/
 backend/push_swap/push_swap
 backend/push_swap/checker_os
 backend/push_swap/.!*checker_os
+backend/a_maze_ing/.DS_Store
+backend/a_maze_ing/.pytest_cache/
 
 # Logs and temp files
 *.log

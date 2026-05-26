@@ -178,7 +178,7 @@ button:disabled {
 
 .maze-marker {
   align-items: center;
-  border: 1px solid rgb(255 253 248 / 0.82);
+  border: 1px solid rgb(255 253 248 / 0.86);
   border-radius: 999px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.28);
   display: inline-flex;
@@ -191,6 +191,57 @@ button:disabled {
   min-width: 11px;
   pointer-events: none;
   width: min(78%, 22px);
+}
+
+.maze-marker::before,
+.maze-marker::after {
+  content: "";
+  display: block;
+}
+
+.maze-marker-entry {
+  background:
+    radial-gradient(circle at 50% 42%, #fffdf8 0 18%, transparent 19%),
+    linear-gradient(145deg, #6d8248, #344b2f);
+  box-shadow:
+    0 1px 4px rgb(0 0 0 / 0.32),
+    inset 0 -2px 4px rgb(0 0 0 / 0.2);
+}
+
+.maze-marker-entry::before {
+  border-bottom: 0.28em solid transparent;
+  border-left: 0.48em solid #fffdf8;
+  border-top: 0.28em solid transparent;
+  height: 0;
+  margin-left: 0.08em;
+  width: 0;
+}
+
+.maze-marker-exit {
+  background: linear-gradient(145deg, #fff6ed, #f0d6c0);
+  border-color: rgb(130 55 39 / 0.9);
+  box-shadow:
+    0 1px 4px rgb(0 0 0 / 0.34),
+    inset 0 0 0 1px rgb(255 253 248 / 0.46);
+}
+
+.maze-marker-exit::before {
+  background: #5d4035;
+  border-radius: 999px;
+  height: 62%;
+  transform: translateX(-0.12em);
+  width: 0.12em;
+}
+
+.maze-marker-exit::after {
+  align-self: flex-start;
+  background: linear-gradient(135deg, #d94c32, #a72720);
+  border-radius: 0.12em 0.22em 0.22em 0.12em;
+  clip-path: polygon(0 0, 100% 12%, 78% 50%, 100% 88%, 0 100%);
+  height: 42%;
+  margin-left: -0.04em;
+  margin-top: 24%;
+  width: 48%;
 }
 
 .theme-dark .maze-marker {

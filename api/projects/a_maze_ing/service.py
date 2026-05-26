@@ -1,38 +1,52 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
 
-from api.projects.a_maze_ing.schemas import MazeRequest
-
-
-A_MAZE_ING_DIR = Path(__file__).resolve().parents[3] / "backend" / "a-maze-ing"
-if str(A_MAZE_ING_DIR) not in sys.path:
-    sys.path.insert(0, str(A_MAZE_ING_DIR))
-
-from mazegen.algo.utils import GenerateMethod, SolveMethod  # noqa: E402
-from mazegen.generator import MazeGenerator  # noqa: E402
-from mazegen.solver import MazeSolver  # noqa: E402
-from mazegen.utils import MazeGrid  # noqa: E402
-
-
-WALL_NAMES = ["north", "east", "south", "west"]
+from api.projects.a_maze_ing.grid_io import (
+    deserialize_cells,
+    serialize_cells,
+    validate_coord,
+)
+from api.projects.a_maze_ing.schemas import MazeRequest, MazeSolveRequest
+from backend.a_maze_ing.mazegen.algo.utils import GenerateMethod, SolveMethod
+from backend.a_maze_ing.mazegen.generator import MazeGenerator
+from backend.a_maze_ing.mazegen.solver import MazeSolver
+from backend.a_maze_ing.mazegen.utils import MazeGrid
 
 
 def build_maze(request: MazeRequest) -> dict:
+    generated = generate_maze(request)
+    grid = deserialize_cells(
+        MazeSolveRequest(
+            width=request.width,
+            height=request.height,
+            entry=request.entry,
+            exit=request.exit,
+            cells=generated["cells"],
+            solve_algorithm=request.solve_algorithm,
+        )
+    )
+    solved = solve_grid(
+        grid=grid,
+        entry=(request.entry.row, request.entry.col),
+        exit_cell=(request.exit.row, request.exit.col),
+        algorithm=SolveMethod(request.solve_algorithm),
+    )
+    generated["solve_steps"] = solved["solve_steps"]
+    generated["path"] = solved["path"]
+    generated["stats"]["visited_steps"] = solved["stats"]["visited_steps"]
+    generated["stats"]["path_length"] = solved["stats"]["path_length"]
+    return generated
+
+
+def generate_maze(request: MazeRequest) -> dict:
     entry = (request.entry.row, request.entry.col)
     exit_cell = (request.exit.row, request.exit.col)
-    validate_coord(entry, request.height, request.width, "entry")
-    validate_coord(exit_cell, request.height, request.width, "exit")
-    if entry == exit_cell:
-        raise HTTPException(status_code=400, detail="Entry and exit must be different cells.")
+    validate_endpoints(entry, exit_cell, request.height, request.width)
 
     generation_steps: list[dict[str, Any]] = []
-    solve_steps: list[dict[str, int]] = []
-
     try:
         generator = MazeGenerator(
             width=request.width,
@@ -47,14 +61,6 @@ def build_maze(request: MazeRequest) -> dict:
             trace=generation_steps,
         )
         grid = generator.generate(None)
-        solver = MazeSolver(
-            grid=grid,
-            entry=entry,
-            exit=exit_cell,
-            algorithm=SolveMethod(request.solve_algorithm),
-            trace=solve_steps,
-        )
-        path = solver.solve(None)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -62,37 +68,67 @@ def build_maze(request: MazeRequest) -> dict:
         "config": request.model_dump(),
         "cells": serialize_cells(grid),
         "generation_steps": generation_steps,
-        "solve_steps": solve_steps,
-        "path": [{"row": row, "col": col} for row, col in path],
+        "solve_steps": [],
+        "path": [],
         "stats": {
             "width": request.width,
             "height": request.height,
             "cells": request.width * request.height,
             "generation_steps": len(generation_steps),
+            "visited_steps": 0,
+            "path_length": 0,
+        },
+    }
+
+
+def solve_maze(request: MazeSolveRequest) -> dict:
+    entry = (request.entry.row, request.entry.col)
+    exit_cell = (request.exit.row, request.exit.col)
+    validate_endpoints(entry, exit_cell, request.height, request.width)
+    return solve_grid(
+        grid=deserialize_cells(request),
+        entry=entry,
+        exit_cell=exit_cell,
+        algorithm=SolveMethod(request.solve_algorithm),
+    )
+
+
+def solve_grid(
+    grid: MazeGrid,
+    entry: tuple[int, int],
+    exit_cell: tuple[int, int],
+    algorithm: SolveMethod,
+) -> dict:
+    solve_steps: list[dict[str, int]] = []
+    try:
+        solver = MazeSolver(
+            grid=grid,
+            entry=entry,
+            exit=exit_cell,
+            algorithm=algorithm,
+            trace=solve_steps,
+        )
+        path = solver.solve(None)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return {
+        "solve_steps": solve_steps,
+        "path": [{"row": row, "col": col} for row, col in path],
+        "stats": {
             "visited_steps": len(solve_steps),
             "path_length": len(path),
         },
     }
 
 
-def validate_coord(coord: tuple[int, int], height: int, width: int, name: str) -> None:
-    row, col = coord
-    if not (0 <= row < height and 0 <= col < width):
-        raise HTTPException(status_code=400, detail=f"{name} must be inside the maze.")
-
-
-def serialize_cells(grid: MazeGrid) -> list[dict]:
-    height, width = grid.shape
-    return [
-        {
-            "row": row,
-            "col": col,
-            "blocked": bool(grid.blocked[row, col]),
-            "walls": {
-                name: bool(grid.walls[row, col, index])
-                for index, name in enumerate(WALL_NAMES)
-            },
-        }
-        for row in range(height)
-        for col in range(width)
-    ]
+def validate_endpoints(
+    entry: tuple[int, int],
+    exit_cell: tuple[int, int],
+    height: int,
+    width: int,
+) -> None:
+    validate_coord(entry, height, width, "entry")
+    validate_coord(exit_cell, height, width, "exit")
+    if entry == exit_cell:
+        raise HTTPException(status_code=400, detail="Entry and exit must be different cells.")

@@ -1,11 +1,9 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 
-from mazegen.algo.utils import GenerateMethod
-from mazegen.generator import MazeGenerator
-from mazegen.utils import PATTERN_42, MazeGrid
+from backend.a_maze_ing.mazegen.algo.utils import GenerateMethod
+from backend.a_maze_ing.mazegen.generator import MazeGenerator
+from backend.a_maze_ing.mazegen.utils import PATTERN_42, MazeGrid
 
 
 def assert_wall_coherence(grid: MazeGrid) -> None:
@@ -40,38 +38,6 @@ def test_generator_initialized() -> None:
     assert generator._grid.walls.dtype == np.bool_
     assert generator._grid.blocked.shape == (3, 4)
     assert not generator._grid.blocked.any()
-
-
-def test_from_config(
-    tmp_path: Path,
-) -> None:
-    config = tmp_path / "config.txt"
-    config.write_text(
-        "\n".join(
-            [
-                "WIDTH=8",
-                "HEIGHT=6",
-                "ENTRY=2,1",
-                "EXIT=7,5",
-                "OUTPUT_FILE=maze.txt",
-                "PERFECT=True",
-                "SEED=123",
-                "ALGORITHM=binary_tree",
-                "DISPLAY_42=False",
-            ]
-        )
-    )
-
-    generator = MazeGenerator.from_config(str(config))
-
-    assert generator.width == 8
-    assert generator.height == 6
-    assert generator.entry == (1, 2)
-    assert generator.exit == (5, 7)
-    assert generator.output_file == "maze.txt"
-    assert generator.seed == 123
-    assert generator.algorithm == GenerateMethod.BINARY_TREE
-    assert generator.display_42 is False
 
 
 def test_generate_backtracking() -> None:

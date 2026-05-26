@@ -47,3 +47,28 @@ jobs:
         env:
           IMAGE_TAG: test
         run: docker compose config
+
+      - name: Validate local Compose
+        run: docker compose -f docker-compose.local.yml config
+
+  api:
+    name: API and backend checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r api/requirements.txt pytest
+
+      - name: Compile Python modules
+        run: python -m compileall api backend/a_maze_ing
+
+      - name: A_Maze_Ing tests
+        run: pytest backend/a_maze_ing/tests

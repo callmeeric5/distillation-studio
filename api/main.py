@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from api.projects.a_maze_ing.router import router as a_maze_ing_router
-from api.projects.push_swap.router import router as push_swap_router
+from api.projects.registry import PROJECT_ROUTERS
 
 
 app = FastAPI(title="Distillation Studio API")
 
-app.include_router(a_maze_ing_router, prefix="/api/projects/a-maze-ing")
-app.include_router(push_swap_router, prefix="/api/projects/push-swap")
+for project_router in PROJECT_ROUTERS:
+    app.include_router(project_router.router, prefix=project_router.prefix)

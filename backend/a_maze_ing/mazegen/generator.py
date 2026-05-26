@@ -1,10 +1,7 @@
 import random
 from typing import Any
-from typing import Self
 
 import numpy as np
-
-from src.parser import Parser
 
 from .algo.algo_factory import AlgorithmFactory
 from .algo.utils import AlgorithmGen, GenerateMethod, open_wall, wall_direction
@@ -64,24 +61,6 @@ class MazeGenerator:
         )
         self._visited = np.zeros((self.height, self.width), dtype=bool)
         random.seed(seed)
-
-    @classmethod
-    def from_config(cls, path: str) -> Self:
-        """
-        Create an instance of MazeGenerator with a config file
-
-        Use the parsing with the ConfigModel pydantic class to instanciate
-        MazeGenerator with the parameter of the given file
-
-        Args:
-            path: path to the file which contain the config
-
-        Returns:
-            An instance of MazeGenerator configurated with the given file
-        """
-        parser = Parser(path)
-        config = parser.to_config()
-        return cls(**config.model_dump())
 
     def generate(self, method: GenerateMethod | None) -> MazeGrid:
         """

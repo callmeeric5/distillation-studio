@@ -15,6 +15,20 @@ class Coord(BaseModel):
     col: int = Field(..., ge=0)
 
 
+class CellWalls(BaseModel):
+    north: bool
+    east: bool
+    south: bool
+    west: bool
+
+
+class MazeCell(BaseModel):
+    row: int = Field(..., ge=0)
+    col: int = Field(..., ge=0)
+    blocked: bool = False
+    walls: CellWalls
+
+
 class MazeRequest(BaseModel):
     width: int = Field(21, ge=5, le=50)
     height: int = Field(15, ge=5, le=40)
@@ -26,3 +40,12 @@ class MazeRequest(BaseModel):
     generate_algorithm: GenerateAlgorithm = "backtracking"
     solve_algorithm: SolveAlgorithm = "astar"
     theme: MazeTheme = "classic"
+
+
+class MazeSolveRequest(BaseModel):
+    width: int = Field(..., ge=5, le=50)
+    height: int = Field(..., ge=5, le=40)
+    entry: Coord
+    exit: Coord
+    cells: list[MazeCell]
+    solve_algorithm: SolveAlgorithm = "astar"

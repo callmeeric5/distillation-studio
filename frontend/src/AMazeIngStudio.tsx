@@ -1,40 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 
-type MazeTheme = 'classic' | 'midnight' | 'forest' | 'ember';
-type GenerateAlgorithm = 'backtracking' | 'binary_tree' | 'sidewinder' | 'prim';
-type SolveAlgorithm = 'astar' | 'bfs' | 'dfs';
-type Direction = 'north' | 'east' | 'south' | 'west';
-
-type Walls = Record<Direction, boolean>;
-
-type MazeCell = {
-  row: number;
-  col: number;
-  blocked: boolean;
-  walls: Walls;
-};
-
-type MazeStep = {
-  kind: 'carve' | 'extra';
-  from: { row: number; col: number };
-  to: { row: number; col: number };
-  direction: Direction;
-};
-
-type MazeResponse = {
-  cells: MazeCell[];
-  generation_steps: MazeStep[];
-  solve_steps: Array<{ row: number; col: number }>;
-  path: Array<{ row: number; col: number }>;
-  stats: {
-    width: number;
-    height: number;
-    cells: number;
-    generation_steps: number;
-    visited_steps: number;
-    path_length: number;
-  };
-};
+import {
+  generateMaze,
+  solveMaze,
+  type Direction,
+  type GenerateAlgorithm,
+  type MazeCell,
+  type MazeResponse,
+  type MazeTheme,
+  type MazeStep,
+  type SolveAlgorithm,
+} from './api/aMazeIng';
 
 type MazeConfig = {
   width: number;
@@ -49,8 +25,6 @@ type MazeConfig = {
   theme: MazeTheme;
   speed: number;
 };
-
-const apiBase = '/api/projects/a-maze-ing';
 
 const opposite: Record<Direction, Direction> = {
   east: 'west',
@@ -201,15 +175,16 @@ export function AMazeIngStudio({
   const [path, setPath] = useState<Set<string>>(new Set());
   const [phase, setPhase] = useState<'idle' | 'generating' | 'solving' | 'done'>('idle');
   const [stepIndex, setStepIndex] = useState(0);
-  const [status, setStatus] = useState('Configure a maze and run the animation.');
+  const [status, setStatus] = useState('Configure a maze and generate it.');
   const [isBusy, setIsBusy] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   const colors = themeStyles[config.theme];
   const canExpand = fullDescription && fullDescription !== description;
   const entryCoord = parseTuple(config.entry);
   const exitCoord = parseTuple(config.exit);
+  const displayHeight = response?.stats.height ?? config.height;
+  const displayWidth = response?.stats.width ?? config.width;
   const cellsByKey = useMemo(
     () => new Map(visibleCells.map((cell) => [keyOf(cell.row, cell.col), cell])),
     [visibleCells],
@@ -221,24 +196,29 @@ export function AMazeIngStudio({
     });
   }
 
-  async function runMaze() {
+  function validatedEndpoints(height = config.height, width = config.width) {
     const parsedEntry = parseTuple(config.entry);
     const parsedExit = parseTuple(config.exit);
-    if (!parsedEntry || !tupleIsInside(parsedEntry, config.height, config.width)) {
-      setStatus(`Entry must be a tuple inside the ${config.height}x${config.width} maze.`);
-      return;
+    if (!parsedEntry || !tupleIsInside(parsedEntry, height, width)) {
+      setStatus(`Entry must be a tuple inside the ${height}x${width} maze.`);
+      return null;
     }
-    if (!parsedExit || !tupleIsInside(parsedExit, config.height, config.width)) {
-      setStatus(`Exit must be a tuple inside the ${config.height}x${config.width} maze.`);
-      return;
+    if (!parsedExit || !tupleIsInside(parsedExit, height, width)) {
+      setStatus(`Exit must be a tuple inside the ${height}x${width} maze.`);
+      return null;
     }
     if (parsedEntry.row === parsedExit.row && parsedEntry.col === parsedExit.col) {
       setStatus('Entry and exit must be different cells.');
-      return;
+      return null;
     }
+    return { parsedEntry, parsedExit };
+  }
+
+  async function regenerateMaze() {
+    const endpoints = validatedEndpoints();
+    if (!endpoints) return;
 
     setIsBusy(true);
-    setIsPaused(false);
     setPhase('idle');
     setStepIndex(0);
     setVisited(new Set());
@@ -247,8 +227,8 @@ export function AMazeIngStudio({
     try {
       const payload = {
         display_42: config.display42,
-        entry: parsedEntry,
-        exit: parsedExit,
+        entry: endpoints.parsedEntry,
+        exit: endpoints.parsedExit,
         generate_algorithm: config.generateAlgorithm,
         height: config.height,
         perfect: config.perfect,
@@ -257,14 +237,17 @@ export function AMazeIngStudio({
         theme: config.theme,
         width: config.width,
       };
-      const apiResponse = await fetch(`${apiBase}/run`, {
-        body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
+      const data = await generateMaze(payload);
+      setResponse({
+        ...data,
+        path: [],
+        solve_steps: [],
+        stats: {
+          ...data.stats,
+          path_length: 0,
+          visited_steps: 0,
+        },
       });
-      const data = (await apiResponse.json()) as MazeResponse & { detail?: string };
-      if (!apiResponse.ok) throw new Error(data.detail ?? 'Could not generate the maze.');
-      setResponse(data);
       setVisibleCells(data.cells.map(allWalls));
       setPhase('generating');
       setStatus('Animating generation...');
@@ -275,27 +258,60 @@ export function AMazeIngStudio({
     }
   }
 
-  function resetAnimation() {
+  async function resolveMaze() {
     if (!response) return;
-    setIsPaused(false);
-    setVisibleCells(response.cells.map(allWalls));
+    const endpoints = validatedEndpoints(response.stats.height, response.stats.width);
+    if (!endpoints) return;
+
+    setIsBusy(true);
+    setPhase('idle');
+    setStepIndex(0);
     setVisited(new Set());
     setPath(new Set());
-    setStepIndex(0);
-    setPhase('generating');
-    setStatus('Animating generation...');
+    setVisibleCells(response.cells);
+    setStatus('Solving current maze...');
+    try {
+      const payload = {
+        cells: response.cells,
+        entry: endpoints.parsedEntry,
+        exit: endpoints.parsedExit,
+        height: response.stats.height,
+        solve_algorithm: config.solveAlgorithm,
+        width: response.stats.width,
+      };
+      const data = await solveMaze(payload);
+      setResponse((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          path: data.path,
+          solve_steps: data.solve_steps,
+          stats: {
+            ...current.stats,
+            path_length: data.stats.path_length,
+            visited_steps: data.stats.visited_steps,
+          },
+        };
+      });
+      setPhase('solving');
+      setStatus('Animating solver...');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not solve the maze.');
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   useEffect(() => {
-    if (!response || isPaused || phase === 'idle' || phase === 'done') return undefined;
+    if (!response || phase === 'idle' || phase === 'done') return undefined;
     const timer = window.setTimeout(() => {
       if (phase === 'generating') {
         const current = response.generation_steps[stepIndex];
         if (!current) {
           setVisibleCells(response.cells);
           setStepIndex(0);
-          setPhase('solving');
-          setStatus('Animating solver...');
+          setPhase('done');
+          setStatus('Maze generated. Choose a solve algorithm, then resolve.');
           return;
         }
         setVisibleCells((cells) => openWall(cells, current));
@@ -320,7 +336,7 @@ export function AMazeIngStudio({
     }, config.speed);
 
     return () => window.clearTimeout(timer);
-  }, [config.speed, isPaused, phase, response, stepIndex]);
+  }, [config.speed, phase, response, stepIndex]);
 
   return (
     <article className="overflow-hidden rounded-2xl border border-[#e8e3d6] bg-[#fffdf8]">
@@ -376,14 +392,14 @@ export function AMazeIngStudio({
             <div
               className="grid"
               style={{
-                gridTemplateColumns: `repeat(${config.width}, minmax(12px, 1fr))`,
+                gridTemplateColumns: `repeat(${displayWidth}, minmax(12px, 1fr))`,
                 maxWidth: 'min(100%, 980px)',
                 width: '100%',
               }}
             >
-              {Array.from({ length: config.height * config.width }, (_, index) => {
-                const row = Math.floor(index / config.width);
-                const col = index % config.width;
+              {Array.from({ length: displayHeight * displayWidth }, (_, index) => {
+                const row = Math.floor(index / displayWidth);
+                const col = index % displayWidth;
                 const cell = cellsByKey.get(keyOf(row, col));
                 const isEntry = entryCoord?.row === row && entryCoord.col === col;
                 const isExit = exitCoord?.row === row && exitCoord.col === col;
@@ -421,10 +437,10 @@ export function AMazeIngStudio({
                     }}
                   >
                     {isEntry ? (
-                      <span className="maze-marker bg-[#49603b] text-[#fffdf8]">▶</span>
+                      <span className="maze-marker maze-marker-entry" />
                     ) : null}
                     {isExit ? (
-                      <span className="maze-marker bg-[#b6402a] text-[#fffdf8]">⚑</span>
+                      <span className="maze-marker maze-marker-exit" />
                     ) : null}
                   </div>
                 );
@@ -511,28 +527,20 @@ export function AMazeIngStudio({
 
           <div className="grid grid-cols-2 gap-3">
             <button
-              className="col-span-2 min-h-11 rounded-lg bg-[#c96442] px-4 text-sm font-bold text-[#faf9f5] transition hover:bg-[#b65334] disabled:opacity-60"
+              className="min-h-11 rounded-lg bg-[#c96442] px-4 text-sm font-bold text-[#faf9f5] transition hover:bg-[#b65334] disabled:opacity-60"
               disabled={isBusy}
-              onClick={runMaze}
+              onClick={regenerateMaze}
               type="button"
             >
-              Generate and solve
+              Regenerate
             </button>
             <button
               className="min-h-11 rounded-lg border border-[#e8e3d6] bg-[#fffdf8] px-4 text-sm font-semibold text-[#30302e] transition hover:bg-[#f4f1e8] disabled:opacity-60"
-              disabled={!response || phase === 'done'}
-              onClick={() => setIsPaused((current) => !current)}
+              disabled={!response || isBusy || phase === 'generating' || phase === 'solving'}
+              onClick={resolveMaze}
               type="button"
             >
-              {isPaused ? 'Play' : 'Pause'}
-            </button>
-            <button
-              className="min-h-11 rounded-lg border border-[#e8e3d6] bg-[#fffdf8] px-4 text-sm font-semibold text-[#30302e] transition hover:bg-[#f4f1e8] disabled:opacity-60"
-              disabled={!response}
-              onClick={resetAnimation}
-              type="button"
-            >
-              Replay
+              Resolve
             </button>
           </div>
 

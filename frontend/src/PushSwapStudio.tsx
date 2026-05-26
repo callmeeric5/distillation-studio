@@ -1,20 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 
-type Algorithm = 'simple' | 'medium' | 'complex';
+import {
+  generatePushSwapValues,
+  runPushSwap,
+  type PushSwapAlgorithm,
+} from './api/pushSwap';
+
 type StackKey = 'a' | 'b';
-
-type RunResponse = {
-  values: number[];
-  algorithm: Algorithm;
-  moves: string[];
-  move_count: number;
-};
-
-type GenerateResponse = {
-  values: number[];
-};
-
-const apiBase = '/api/projects/push-swap';
 
 function parseValues(text: string) {
   const trimmed = text.trim();
@@ -82,7 +74,7 @@ export function PushSwapStudio({
 }) {
   const [input, setInput] = useState('8 2 5 1 9 3');
   const [size, setSize] = useState(100);
-  const [algorithm, setAlgorithm] = useState<Algorithm>('complex');
+  const [algorithm, setAlgorithm] = useState<PushSwapAlgorithm>('complex');
   const [initialValues, setInitialValues] = useState<number[]>(parseValues(input));
   const [moves, setMoves] = useState<string[]>([]);
   const [cursor, setCursor] = useState(0);
@@ -106,13 +98,7 @@ export function PushSwapStudio({
     setStatus('Generating input...');
     setIsBusy(true);
     try {
-      const response = await fetch(`${apiBase}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ size, minimum: -500, maximum: 500 }),
-      });
-      const data = (await response.json()) as GenerateResponse & { detail?: string };
-      if (!response.ok) throw new Error(data.detail ?? 'Could not generate values.');
+      const data = await generatePushSwapValues(size, -500, 500);
       setInput(data.values.join(' '));
       setStatus('Generated a unique random input.');
     } catch (error) {
@@ -133,13 +119,7 @@ export function PushSwapStudio({
     setStatus('Running push_swap...');
     setIsBusy(true);
     try {
-      const response = await fetch(`${apiBase}/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values, algorithm }),
-      });
-      const data = (await response.json()) as RunResponse & { detail?: string };
-      if (!response.ok) throw new Error(data.detail ?? 'push_swap failed.');
+      const data = await runPushSwap(values, algorithm);
       setInitialValues(data.values);
       setMoves(data.moves);
       setCursor(0);
@@ -259,7 +239,7 @@ export function PushSwapStudio({
             <legend className="col-span-3 mb-1 text-sm font-bold text-[#777267]">
               Algorithm
             </legend>
-            {(['simple', 'medium', 'complex'] as Algorithm[]).map((item) => (
+            {(['simple', 'medium', 'complex'] as PushSwapAlgorithm[]).map((item) => (
               <label
                 className={`flex min-h-10 items-center justify-center rounded-lg border text-sm font-semibold ${
                   algorithm === item

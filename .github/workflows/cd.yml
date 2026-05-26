@@ -90,16 +90,10 @@ jobs:
           else
             echo 'Docker Compose is not installed on the server.'
             echo 'Install it once on Ubuntu with: sudo apt-get update && sudo apt-get install -y docker-compose-plugin'
-            echo 'If that package is unavailable, try: sudo apt-get install -y docker-compose-v2'
             exit 1
           fi
-          echo 'Current Docker containers using public web ports:'
-          docker ps --filter publish=80 --filter publish=443 --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}' || true
-          echo 'Current host listeners on ports 80/443:'
-          ss -ltnp '( sport = :80 or sport = :443 )' || true
           $COMPOSE pull
           $COMPOSE up -d --remove-orphans
           $COMPOSE ps
-          $COMPOSE logs --tail=80 frontend || true
           docker image prune -f
           EOF
