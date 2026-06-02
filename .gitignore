@@ -28,6 +28,11 @@ backend/push_swap/checker_os
 backend/push_swap/.!*checker_os
 backend/a_maze_ing/.DS_Store
 backend/a_maze_ing/.pytest_cache/
+backend/trace_ops_agent/.venv/
+backend/trace_ops_agent/.env
+backend/trace_ops_agent/sentinel_ops.db
+backend/trace_ops_agent/frontend/.next/
+backend/trace_ops_agent/**/*.db
 
 # Logs and temp files
 *.log

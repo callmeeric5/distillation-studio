@@ -23,6 +23,13 @@ backend/push_swap/checker_os
 backend/push_swap/.!*checker_os
 backend/a_maze_ing/tests
 backend/a_maze_ing/.DS_Store
+backend/trace_ops_agent/.venv
+backend/trace_ops_agent/.env
+backend/trace_ops_agent/frontend/.next
+backend/trace_ops_agent/**/*.db
+backend/trace_ops_agent/evals
+backend/trace_ops_agent/doc
+backend/trace_ops_agent/tests
 
 **/*.log
 tmp

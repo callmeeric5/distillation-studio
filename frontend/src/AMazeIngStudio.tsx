@@ -353,7 +353,7 @@ export function AMazeIngStudio({
               </button>
               <p className="text-sm font-semibold text-[#c96442]">42 A_Maze_Ing</p>
               <h3 className="mt-2 font-serif text-4xl leading-tight text-[#171715] sm:text-5xl">
-                A_Maze_Ing Studio
+                A_Maze_Ing
               </h3>
               <p className="mt-5 text-lg leading-8 text-[#5e5d59]">
                 {isDescriptionExpanded || !canExpand ? (fullDescription ?? description) : description}
@@ -535,7 +535,7 @@ export function AMazeIngStudio({
               Regenerate
             </button>
             <button
-              className="min-h-11 rounded-lg border border-[#e8e3d6] bg-[#fffdf8] px-4 text-sm font-semibold text-[#30302e] transition hover:bg-[#f4f1e8] disabled:opacity-60"
+              className="min-h-11 rounded-lg bg-[#5f7f68] px-4 text-sm font-semibold text-[#fffdf8] transition hover:bg-[#4f6d58] disabled:opacity-60"
               disabled={!response || isBusy || phase === 'generating' || phase === 'solving'}
               onClick={resolveMaze}
               type="button"

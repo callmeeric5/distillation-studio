@@ -1,5 +1,6 @@
 import { AMazeIngStudio } from '../AMazeIngStudio';
 import { PushSwapStudio } from '../PushSwapStudio';
+import { TraceOpsAgentStudio } from '../TraceOpsAgentStudio';
 import { projectStatusStyles, statusStyles } from '../lib/styles';
 import type { Project, RunState } from '../types/projects';
 import { CollapsibleDescription } from './CollapsibleDescription';
@@ -30,6 +31,16 @@ export function ProjectPage({
   if (project.slug === 'a-maze-ing') {
     return (
       <AMazeIngStudio
+        description={project.description}
+        fullDescription={project.fullDescription}
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (project.slug === 'trace-ops-agent') {
+    return (
+      <TraceOpsAgentStudio
         description={project.description}
         fullDescription={project.fullDescription}
         onBack={onBack}

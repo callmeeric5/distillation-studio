@@ -1,5 +1,6 @@
 import mazeCover from '../assets/a-maze-ing-cover.png';
 import pushSwapCover from '../assets/push-swap-cover.png';
+import traceOpsCover from '../assets/trace-ops-agent-cover.png';
 import type { Project, ProjectStatus, StatusFilter, TabKey } from '../types/projects';
 
 export const tabs: Array<{ key: TabKey; label: string }> = [
@@ -24,33 +25,33 @@ export const projects42: Project[] = [
     tags: ['maze', 'algorithm', 'runner'],
   },
   {
-    title: 'Pacman',
+    title: 'Pac_Man',
     category: '42 project',
-    language: 'Common Core / c',
+    language: 'Common Core / python',
     status: 'in progress',
     description: 'A game-oriented C project planned as a compact arcade-style entry in the 42 collection.',
     fullDescription:
-      'Pacman is listed as in progress while the project materials are being prepared. The detail page will collect the goal, implementation notes, and any runnable or visual pieces once they are ready.',
+      'Pac_Man is listed as in progress while the project materials are being prepared. The detail page will collect the goal, implementation notes, and any runnable or visual pieces once they are ready.',
     slug: 'pacman',
-    routeSlug: 'pacman',
+    routeSlug: 'pac-man',
     tags: ['game', 'maps', 'graphics'],
   },
   {
-    title: 'Flyin',
+    title: 'Fly_In',
     category: '42 project',
-    language: 'Common Core / c',
+    language: 'Common Core / python',
     status: 'in progress',
     description: 'A work-in-progress 42 project entry reserved for notes, implementation details, and demos.',
     fullDescription:
-      'Flyin is currently in progress. This page will become the place for the project description, technical notes, and any browser-friendly output once the implementation is ready to present.',
+      'Fly_In is currently in progress. This page will become the place for the project description, technical notes, and any browser-friendly output once the implementation is ready to present.',
     slug: 'flyin',
-    routeSlug: 'flyin',
+    routeSlug: 'fly-in',
     tags: ['42', 'systems', 'demo'],
   },
   {
     title: 'Call_Me_Maybe',
     category: '42 project',
-    language: 'Common Core / c',
+    language: 'Common Core / python',
     status: 'in progress',
     description: 'A planned 42 project page for collecting the project story, implementation notes, and final result.',
     fullDescription:
@@ -75,7 +76,23 @@ export const projects42: Project[] = [
   },
 ];
 
-export const funProjects: Project[] = [];
+export const funProjects: Project[] = [
+  {
+    title: 'Trace_Ops_Agent',
+    category: 'Fun project',
+    language: 'LLM / FastAPI / ops',
+    status: 'ready',
+    description:
+      'An incident diagnosis assistant that turns logs and alerts into a structured operations report.',
+    fullDescription:
+      'Trace_Ops_Agent is a lightweight portfolio version of an SRE diagnostic assistant. Enter an incident, paste logs, choose a provider and model, and the shared FastAPI backend calls your selected LLM with your request-only API key to produce a root cause, evidence chain, recommended actions, and confidence.',
+    endpoint: '/api/projects/trace-ops-agent/diagnose',
+    coverImage: traceOpsCover,
+    slug: 'trace-ops-agent',
+    routeSlug: 'trace_ops_agent',
+    tags: ['ReAct Agent', 'LangGraph', 'LangChain'],
+  },
+];
 export const statusOrder: ProjectStatus[] = ['ready', 'coming soon', 'in progress'];
 export const statusFilters: StatusFilter[] = ['all', ...statusOrder];
 export const allProjects = [...projects42, ...funProjects];

@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from api.projects.a_maze_ing.router import router as a_maze_ing_router
 from api.projects.push_swap.router import router as push_swap_router
+from api.projects.trace_ops_agent.router import router as trace_ops_agent_router
 
 
 @dataclass(frozen=True)
@@ -17,4 +18,5 @@ class ProjectRouter:
 PROJECT_ROUTERS = [
     ProjectRouter(prefix="/api/projects/a-maze-ing", router=a_maze_ing_router),
     ProjectRouter(prefix="/api/projects/push-swap", router=push_swap_router),
+    ProjectRouter(prefix="/api/projects/trace-ops-agent", router=trace_ops_agent_router),
 ]

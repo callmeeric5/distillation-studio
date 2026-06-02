@@ -1,10 +1,26 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: traceops
+      POSTGRES_USER: traceops
+      POSTGRES_PASSWORD: traceops
+    volumes:
+      - traceops-postgres-local:/var/lib/postgresql/data
+    networks:
+      - distillation
+
   api:
     build:
       context: .
       dockerfile: ./api/Dockerfile
     image: distillation-studio-api:local
     restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql+asyncpg://traceops:traceops@postgres:5432/traceops
     expose:
       - "8000"
     networks:
@@ -27,3 +43,6 @@ services:
 networks:
   distillation:
     driver: bridge
+
+volumes:
+  traceops-postgres-local:

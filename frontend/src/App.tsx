@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { FunProjectsPlaceholder } from './components/FunProjectsPlaceholder';
 import { ProjectGallery } from './components/ProjectGallery';
 import { ProjectPage } from './components/ProjectPage';
 import { SiteHeader } from './components/SiteHeader';
@@ -124,7 +123,7 @@ function App() {
 
           {selectedProject ? (
             <ProjectPage
-              onBack={() => navigate('/projects')}
+              onBack={() => navigate(activeTab === 'fun' ? '/projects/fun' : '/projects')}
               onRunProject={runProject}
               project={selectedProject}
               runState={
@@ -145,7 +144,12 @@ function App() {
             />
           )}
           {!selectedProject && activeTab === 'fun' && (
-            <FunProjectsPlaceholder onTryProject={selectProject} projects={funProjects} />
+            <ProjectGallery
+              onStatusFilterChange={setStatusFilter}
+              onTryProject={selectProject}
+              projects={funProjects}
+              statusFilter={statusFilter}
+            />
           )}
           {!selectedProject && activeTab === 'about' && <AboutMe />}
         </section>

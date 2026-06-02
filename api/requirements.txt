@@ -1,3 +1,11 @@
 fastapi
+httpx
+asyncpg
+langchain-anthropic
+langchain-core
+langchain-google-genai
+langchain-openai
+langgraph
 numpy
+sqlalchemy
 uvicorn[standard]

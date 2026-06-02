@@ -54,6 +54,8 @@ jobs:
   api:
     name: API and backend checks
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
 
     steps:
       - name: Checkout
@@ -68,7 +70,10 @@ jobs:
         run: pip install -r api/requirements.txt pytest
 
       - name: Compile Python modules
-        run: python -m compileall api backend/a_maze_ing
+        run: python -m compileall api backend/a_maze_ing backend/trace_ops_agent
 
       - name: A_Maze_Ing tests
         run: pytest backend/a_maze_ing/tests
+
+      - name: Trace-Ops-Agent tests
+        run: pytest backend/trace_ops_agent/tests

@@ -33,10 +33,11 @@ Distillation Studio is a portfolio app with a Vite/React frontend, one shared Fa
 
 ## Deployment
 
-Production uses two containers:
+Production uses two application containers plus a private database:
 
 - `api`: FastAPI on the internal Compose network, port `8000`.
 - `frontend`: Nginx serving the Vite build and proxying `/api/` to `api:8000`.
+- `postgres`: private PostgreSQL service with a `traceops` database for website project data.
 
 The Oracle server deploy directory is `/home/ubuntu/distillation-studio`. Cloudflare Origin Certificate files should be placed at:
 
@@ -44,3 +45,5 @@ The Oracle server deploy directory is `/home/ubuntu/distillation-studio`. Cloudf
 - `/home/ubuntu/distillation-studio/certs/origin.key`
 
 GitHub Actions builds ARM64 images, pushes them to GHCR, uploads `docker-compose.yml`, writes `.env` with `IMAGE_TAG`, then runs `docker compose pull` and `docker compose up -d --remove-orphans`.
+
+`TRACEOPS_POSTGRES_PASSWORD` can be added to the deployment `.env` later if you want to replace the Compose default password. Provider API keys for Trace-Ops-Agent are never stored; they are used only for the current request.

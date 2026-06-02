@@ -2,6 +2,9 @@ import { allProjects } from '../data/projects';
 import type { Project, RouteState, TabKey } from '../types/projects';
 
 export function getProjectPath(project: Project) {
+  if (project.category === 'Fun project') {
+    return `/projects/fun/${project.routeSlug}`;
+  }
   return `/projects/42projects/${project.routeSlug}`;
 }
 
@@ -16,13 +19,17 @@ export function getTabPath(tab: TabKey) {
 
 export function readRoute(): RouteState {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
-  const projectMatch = path.match(/^\/projects\/42projects\/([^/]+)$/);
+  const projectMatch = path.match(/^\/projects\/(42projects|fun)\/([^/]+)$/);
   const selectedProject = projectMatch
-    ? allProjects.find((project) => project.routeSlug === projectMatch[1])
+    ? allProjects.find((project) => project.routeSlug === projectMatch[2])
     : null;
 
   if (selectedProject) {
-    return { activeTab: 'projects42', selectedProject, title: selectedProject.title };
+    return {
+      activeTab: projectMatch?.[1] === 'fun' ? 'fun' : 'projects42',
+      selectedProject,
+      title: selectedProject.title,
+    };
   }
   if (path === '/projects') {
     return { activeTab: 'projects42', selectedProject: null, title: 'Projects' };

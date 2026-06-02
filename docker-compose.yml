@@ -1,7 +1,23 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: traceops
+      POSTGRES_USER: traceops
+      POSTGRES_PASSWORD: ${TRACEOPS_POSTGRES_PASSWORD:-traceops}
+    volumes:
+      - traceops-postgres:/var/lib/postgresql/data
+    networks:
+      - distillation
+
   api:
     image: ghcr.io/callmeeric5/distillation-studio-api:${IMAGE_TAG:?IMAGE_TAG is required}
     restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql+asyncpg://traceops:${TRACEOPS_POSTGRES_PASSWORD:-traceops}@postgres:5432/traceops
     expose:
       - "8000"
     networks:
@@ -23,3 +39,6 @@ services:
 networks:
   distillation:
     driver: bridge
+
+volumes:
+  traceops-postgres:
