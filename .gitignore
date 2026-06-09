@@ -28,6 +28,12 @@ backend/push_swap/checker_os
 backend/push_swap/.!*checker_os
 backend/a_maze_ing/.DS_Store
 backend/a_maze_ing/.pytest_cache/
+backend/pac_man/.github/
+backend/pac_man/.venv/
+backend/pac_man/tests/__pycache__/
+backend/pac_man/src/__pycache__/
+backend/pac_man/*.log
+backend/pac_man/uv.lock
 backend/trace_ops_agent/.venv/
 backend/trace_ops_agent/.env
 backend/trace_ops_agent/sentinel_ops.db

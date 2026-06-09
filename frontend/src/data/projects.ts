@@ -1,4 +1,5 @@
 import mazeCover from '../assets/a-maze-ing-cover.png';
+import pacManCover from '../assets/pac-man-cover.png';
 import pushSwapCover from '../assets/push-swap-cover.png';
 import traceOpsCover from '../assets/trace-ops-agent-cover.png';
 import type { Project, ProjectStatus, StatusFilter, TabKey } from '../types/projects';
@@ -28,13 +29,14 @@ export const projects42: Project[] = [
     title: 'Pac_Man',
     category: '42 project',
     language: 'Common Core / python',
-    status: 'in progress',
-    description: 'A game-oriented C project planned as a compact arcade-style entry in the 42 collection.',
+    status: 'ready',
+    description: 'A multi-level browser arcade game with maze movement, ghost AI, scoring, and a live leaderboard.',
     fullDescription:
-      'Pac_Man is listed as in progress while the project materials are being prepared. The detail page will collect the goal, implementation notes, and any runnable or visual pieces once they are ready.',
+      'Pac_Man adapts the original Python Arcade project into a browser-playable Canvas game. Move through generated mazes, collect pacgums, use power dots to turn the chase around, advance through several levels, then submit your run to the Postgres-backed leaderboard.',
+    coverImage: pacManCover,
     slug: 'pacman',
     routeSlug: 'pac-man',
-    tags: ['game', 'maps', 'graphics'],
+    tags: ['game', 'maze', 'ghost AI'],
   },
   {
     title: 'Fly_In',

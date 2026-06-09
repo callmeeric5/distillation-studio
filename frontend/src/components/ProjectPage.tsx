@@ -1,4 +1,5 @@
 import { AMazeIngStudio } from '../AMazeIngStudio';
+import { PacManStudio } from '../PacManStudio';
 import { PushSwapStudio } from '../PushSwapStudio';
 import { TraceOpsAgentStudio } from '../TraceOpsAgentStudio';
 import { projectStatusStyles, statusStyles } from '../lib/styles';
@@ -41,6 +42,16 @@ export function ProjectPage({
   if (project.slug === 'trace-ops-agent') {
     return (
       <TraceOpsAgentStudio
+        description={project.description}
+        fullDescription={project.fullDescription}
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (project.slug === 'pacman') {
+    return (
+      <PacManStudio
         description={project.description}
         fullDescription={project.fullDescription}
         onBack={onBack}

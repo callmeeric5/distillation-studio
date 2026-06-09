@@ -1,6 +1,7 @@
 fastapi
 httpx
 asyncpg
+greenlet
 langchain-anthropic
 langchain-core
 langchain-google-genai

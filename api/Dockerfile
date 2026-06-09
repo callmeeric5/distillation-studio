@@ -22,13 +22,17 @@ RUN addgroup --system app \
   && adduser --system --ingroup app app
 
 COPY api/requirements.txt .
+COPY backend/pac_man/lib/mazegenerator-2.0.1-py3-none-any.whl /tmp/mazegenerator-2.0.1-py3-none-any.whl
 RUN pip install --no-cache-dir --upgrade pip \
-  && pip install --no-cache-dir -r requirements.txt
+  && pip install --no-cache-dir -r requirements.txt \
+  && pip install --no-cache-dir /tmp/mazegenerator-2.0.1-py3-none-any.whl \
+  && rm /tmp/mazegenerator-2.0.1-py3-none-any.whl
 
 COPY api/ ./api/
 RUN mkdir -p ./backend
 COPY backend/__init__.py ./backend/__init__.py
 COPY backend/a_maze_ing/ ./backend/a_maze_ing/
+COPY backend/pac_man/ ./backend/pac_man/
 COPY backend/trace_ops_agent/ ./backend/trace_ops_agent/
 RUN mkdir -p ./backend/push_swap
 COPY --from=builder /build/backend/push_swap/push_swap ./backend/push_swap/push_swap
