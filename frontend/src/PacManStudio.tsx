@@ -20,6 +20,7 @@ type Entity = {
   row: number;
   col: number;
   direction: Direction;
+  target: { row: number; col: number } | null;
 };
 
 type Ghost = Entity & {
@@ -78,6 +79,7 @@ const directions: Record<Direction, { row: number; col: number; wall: number; op
   right: { row: 0, col: 1, wall: WALL_EAST, opposite: WALL_WEST },
   up: { row: -1, col: 0, wall: WALL_NORTH, opposite: WALL_SOUTH },
 };
+const preferredDirections: Direction[] = ['up', 'down', 'left', 'right'];
 
 const emptySnapshot: Snapshot = {
   completed: false,
@@ -100,6 +102,14 @@ function mapCollectibles(items: Collectible[]) {
   return new Map(items.map((item) => [keyOf(item.row, item.col), item]));
 }
 
+function availableDirections(level: PacmanLevel, row: number, col: number) {
+  return preferredDirections.filter((direction) => canMove(level, row, col, direction));
+}
+
+function initialDirection(level: PacmanLevel, row: number, col: number) {
+  return availableDirections(level, row, col)[0] ?? 'right';
+}
+
 function createGame({
   config,
   level,
@@ -111,16 +121,18 @@ function createGame({
   playerName: string;
   previous?: Game;
 }): Game {
+  const playerDirection = initialDirection(level, level.player.row, level.player.col);
   return {
     elapsedSeconds: 0,
     frightenedUntil: 0,
     ghosts: level.ghosts.map((ghost, index) => ({
       col: ghost.col,
       color: ghostColors[index % ghostColors.length],
-      direction: index % 2 === 0 ? 'right' : 'left',
+      direction: initialDirection(level, ghost.row, ghost.col),
       home: { row: ghost.home_row, col: ghost.home_col },
       mode: ghost.state === 'frighten' || ghost.state === 'eaten' ? ghost.state : 'chase',
       row: ghost.row,
+      target: null,
     })),
     level,
     levelCount: config.levels.length,
@@ -129,11 +141,12 @@ function createGame({
     pacgums: mapCollectibles(level.pacgums),
     player: {
       col: level.player.col,
-      direction: 'right',
+      direction: playerDirection,
       row: level.player.row,
+      target: null,
     },
     playerName,
-    requestedDirection: 'right',
+    requestedDirection: playerDirection,
     score: previous?.score ?? 0,
     status: 'playing',
     superPacgums: mapCollectibles(level.super_pacgums),
@@ -177,17 +190,48 @@ function canMove(level: PacmanLevel, row: number, col: number, direction: Direct
   const nextCol = roundedCol + movement.col;
   if (nextRow < 0 || nextRow >= level.height || nextCol < 0 || nextCol >= level.width) return false;
   const cell = level.cells[roundedRow][roundedCol];
-  return !cell.is_42_pattern && (cell.walls & movement.wall) === 0;
+  const nextCell = level.cells[nextRow][nextCol];
+  return !cell.is_42_pattern && !nextCell.is_42_pattern && (cell.walls & movement.wall) === 0;
 }
 
 function isCenter(entity: Entity) {
   return Math.abs(entity.row - Math.round(entity.row)) < 0.08 && Math.abs(entity.col - Math.round(entity.col)) < 0.08;
 }
 
-function moveEntity(entity: Entity, direction: Direction, speed: number, deltaSeconds: number) {
+function nextPosition(entity: Entity, direction: Direction) {
   const movement = directions[direction];
-  entity.row += movement.row * speed * deltaSeconds;
-  entity.col += movement.col * speed * deltaSeconds;
+  return {
+    col: Math.round(entity.col) + movement.col,
+    row: Math.round(entity.row) + movement.row,
+  };
+}
+
+function assignTarget(entity: Entity, level: PacmanLevel, direction: Direction) {
+  entity.row = Math.round(entity.row);
+  entity.col = Math.round(entity.col);
+  if (!canMove(level, entity.row, entity.col, direction)) return false;
+  entity.direction = direction;
+  entity.target = nextPosition(entity, direction);
+  return true;
+}
+
+function moveEntityToTarget(entity: Entity, speed: number, deltaSeconds: number) {
+  if (!entity.target) return;
+  const maxDistance = speed * deltaSeconds;
+  const rowDistance = entity.target.row - entity.row;
+  const colDistance = entity.target.col - entity.col;
+  const distance = Math.abs(rowDistance) + Math.abs(colDistance);
+
+  if (distance <= maxDistance) {
+    entity.row = entity.target.row;
+    entity.col = entity.target.col;
+    entity.target = null;
+    return;
+  }
+
+  const ratio = maxDistance / distance;
+  entity.row += rowDistance * ratio;
+  entity.col += colDistance * ratio;
 }
 
 function chooseGhostDirection(game: Game, ghost: Ghost) {
@@ -214,19 +258,22 @@ function distanceAfterMove(entity: Entity, direction: Direction, target: { row: 
 }
 
 function resetPositions(game: Game) {
+  const playerDirection = initialDirection(game.level, game.level.player.row, game.level.player.col);
   game.player = {
     col: game.level.player.col,
-    direction: 'right',
+    direction: playerDirection,
     row: game.level.player.row,
+    target: null,
   };
-  game.requestedDirection = 'right';
+  game.requestedDirection = playerDirection;
   game.ghosts = game.level.ghosts.map((ghost, index) => ({
     col: ghost.col,
     color: ghostColors[index % ghostColors.length],
-    direction: index % 2 === 0 ? 'right' : 'left',
+    direction: initialDirection(game.level, ghost.row, ghost.col),
     home: { row: ghost.home_row, col: ghost.home_col },
     mode: 'chase',
     row: ghost.row,
+    target: null,
   }));
   game.frightenedUntil = 0;
 }
@@ -244,16 +291,19 @@ function updateGame(game: Game, deltaSeconds: number) {
     return;
   }
 
-  if (isCenter(game.player)) {
+  if (!game.player.target && isCenter(game.player)) {
     game.player.row = Math.round(game.player.row);
     game.player.col = Math.round(game.player.col);
     if (canMove(game.level, game.player.row, game.player.col, game.requestedDirection)) {
-      game.player.direction = game.requestedDirection;
+      assignTarget(game.player, game.level, game.requestedDirection);
+    } else if (canMove(game.level, game.player.row, game.player.col, game.player.direction)) {
+      assignTarget(game.player, game.level, game.player.direction);
+    } else {
+      const fallback = availableDirections(game.level, game.player.row, game.player.col)[0];
+      if (fallback) assignTarget(game.player, game.level, fallback);
     }
   }
-  if (canMove(game.level, game.player.row, game.player.col, game.player.direction)) {
-    moveEntity(game.player, game.player.direction, playerSpeed, deltaSeconds);
-  }
+  moveEntityToTarget(game.player, playerSpeed, deltaSeconds);
 
   const playerKey = keyOf(Math.round(game.player.row), Math.round(game.player.col));
   const pacgum = game.pacgums.get(playerKey);
@@ -273,17 +323,15 @@ function updateGame(game: Game, deltaSeconds: number) {
 
   for (const ghost of game.ghosts) {
     if (ghost.mode === 'frighten' && game.elapsedSeconds > game.frightenedUntil) ghost.mode = 'chase';
-    if (isCenter(ghost)) {
+    if (!ghost.target && isCenter(ghost)) {
       ghost.row = Math.round(ghost.row);
       ghost.col = Math.round(ghost.col);
       if (ghost.mode === 'eaten' && ghost.row === ghost.home.row && ghost.col === ghost.home.col) {
         ghost.mode = 'chase';
       }
-      ghost.direction = chooseGhostDirection(game, ghost);
+      assignTarget(ghost, game.level, chooseGhostDirection(game, ghost));
     }
-    if (canMove(game.level, ghost.row, ghost.col, ghost.direction)) {
-      moveEntity(ghost, ghost.direction, ghost.mode === 'eaten' ? ghostSpeed * 1.45 : ghostSpeed, deltaSeconds);
-    }
+    moveEntityToTarget(ghost, ghost.mode === 'eaten' ? ghostSpeed * 1.45 : ghostSpeed, deltaSeconds);
   }
 
   for (const ghost of game.ghosts) {
@@ -313,8 +361,8 @@ function drawGame(canvas: HTMLCanvasElement, game: Game | null) {
   const context = canvas.getContext('2d');
   if (!context) return;
   const rect = canvas.getBoundingClientRect();
-  const width = Math.max(640, Math.floor(rect.width || 960));
-  const height = Math.max(420, Math.floor(width * 0.5625));
+  const width = Math.max(360, Math.floor(rect.width || 960));
+  const height = Math.max(360, Math.floor(rect.height || width * 0.625));
   const ratio = window.devicePixelRatio || 1;
   canvas.width = width * ratio;
   canvas.height = height * ratio;
@@ -334,12 +382,11 @@ function drawGame(canvas: HTMLCanvasElement, game: Game | null) {
     return;
   }
 
-  const paddingTop = 74;
   const padding = 28;
-  const boardSize = Math.min(width - padding * 2, height - paddingTop - padding);
+  const boardSize = Math.min(width - padding * 2, height - padding * 2);
   const cellSize = boardSize / Math.max(game.level.width, game.level.height);
   const offsetX = (width - game.level.width * cellSize) / 2;
-  const offsetY = paddingTop + (height - paddingTop - game.level.height * cellSize) / 2;
+  const offsetY = (height - game.level.height * cellSize) / 2;
 
   context.lineWidth = Math.max(2, cellSize * 0.12);
   context.strokeStyle = isDark ? '#7a9f91' : '#668f80';
@@ -621,25 +668,13 @@ export function PacManStudio({
         />
       </div>
 
-      <div className="p-5 lg:p-7">
-        <section className="relative overflow-hidden rounded-2xl border border-[#d8d1c2] bg-[#171715] shadow-sm">
+      <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-7">
+        <section className="relative mx-auto aspect-square w-full max-w-[760px] overflow-hidden rounded-2xl border border-[#d8d1c2] bg-[#fffdf8] shadow-sm">
           <canvas
             aria-label="Pac-Man playable maze"
-            className="block aspect-video w-full bg-[#fffdf8]"
+            className="block h-full w-full bg-[#fffdf8]"
             ref={canvasRef}
           />
-
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-b from-[#171715]/80 to-transparent p-4 text-[#faf9f5]">
-            <div className="flex flex-wrap gap-2">
-              <GamePill label="Player" value={snapshot.playerName || 'Waiting'} />
-              <GamePill label="Score" value={snapshot.score.toLocaleString()} />
-              <GamePill label="Lives" value={snapshot.lives.toString()} />
-              <GamePill label="Time" value={`${snapshot.timeLeft}s`} />
-            </div>
-            <span className="rounded-full bg-[#faf9f5]/15 px-3 py-1 text-xs font-bold uppercase tracking-wide">
-              {snapshot.statusText}
-            </span>
-          </div>
 
           {snapshot.status === 'idle' || snapshot.status === 'error' ? (
             <div className="absolute inset-0 flex items-center justify-center bg-[#171715]/60 p-5 backdrop-blur-sm">
@@ -704,9 +739,25 @@ export function PacManStudio({
               </div>
             </div>
           ) : null}
+        </section>
 
-          <div className="absolute bottom-4 left-4 right-4 grid gap-3 md:grid-cols-[auto_1fr]">
-            <div className="flex flex-wrap gap-2">
+        <aside className="grid content-start gap-4">
+          <div className="rounded-2xl border border-[#e8e3d6] bg-[#f4f1e8] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-[#c96442]">Run status</p>
+              <span className="rounded-full bg-[#30302e] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#faf9f5]">
+                {snapshot.statusText}
+              </span>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-3">
+              <Metric label="Player" value={snapshot.playerName || 'Waiting'} />
+              <Metric label="Level" value={`${snapshot.level}/${snapshot.levelCount}`} />
+              <Metric label="Score" value={snapshot.score.toLocaleString()} />
+              <Metric label="Lives" value={snapshot.lives.toString()} />
+              <Metric label="Time" value={`${snapshot.timeLeft}s`} />
+              <Metric label="Elapsed" value={`${snapshot.elapsedSeconds}s`} />
+            </dl>
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 className="min-h-10 rounded-lg bg-[#c96442] px-4 text-sm font-semibold text-[#faf9f5] transition hover:bg-[#b65334]"
                 onClick={restart}
@@ -723,43 +774,49 @@ export function PacManStudio({
                 {snapshot.status === 'paused' ? 'Resume' : 'Pause'}
               </button>
             </div>
-            <div className="min-w-0 rounded-xl border border-[#faf9f5]/20 bg-[#171715]/70 p-3 text-[#faf9f5] backdrop-blur">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#faf9f5]/70">Leaderboard</p>
-                <button
-                  className="text-xs font-bold text-[#f0b89d] underline-offset-4 hover:underline"
-                  onClick={() => void refreshScores()}
-                  type="button"
-                >
-                  Refresh
-                </button>
-              </div>
-              <ol className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-5">
-                {scores.slice(0, 5).map((score, index) => (
-                  <li className="min-w-0 rounded-lg bg-[#faf9f5]/10 px-2 py-1 text-xs" key={score.id}>
-                    <span className="font-bold">{index + 1}. </span>
-                    <span className="truncate">{score.player_name}</span>
-                    <span className="ml-1 font-mono text-[#f0b89d]">{score.score}</span>
-                  </li>
-                ))}
-                {scores.length === 0 ? (
-                  <li className="rounded-lg bg-[#faf9f5]/10 px-2 py-1 text-xs text-[#faf9f5]/75">
-                    No scores yet.
-                  </li>
-                ) : null}
-              </ol>
-            </div>
+            <p className="mt-3 text-xs font-semibold text-[#8b8174]">{message}</p>
           </div>
-        </section>
+
+          <div className="rounded-2xl border border-[#e8e3d6] bg-[#fffdf8] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-[#171715]">Leaderboard</p>
+              <button
+                className="text-xs font-bold text-[#8a4429] underline-offset-4 hover:underline"
+                onClick={() => void refreshScores()}
+                type="button"
+              >
+                Refresh
+              </button>
+            </div>
+            <ol className="mt-3 grid gap-2">
+              {scores.slice(0, 10).map((score, index) => (
+                <li
+                  className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border border-[#e8e3d6] bg-[#f4f1e8] px-3 py-2 text-sm"
+                  key={score.id}
+                >
+                  <span className="font-semibold text-[#8b8174]">{index + 1}</span>
+                  <span className="min-w-0 truncate font-semibold text-[#171715]">{score.player_name}</span>
+                  <span className="font-mono text-[#8a4429]">{score.score}</span>
+                </li>
+              ))}
+              {scores.length === 0 ? (
+                <li className="rounded-lg border border-dashed border-[#d8d1c2] bg-[#f4f1e8] p-3 text-sm text-[#5e5d59]">
+                  No scores yet.
+                </li>
+              ) : null}
+            </ol>
+          </div>
+        </aside>
       </div>
     </article>
   );
 }
 
-function GamePill({ label, value }: { label: string; value: string }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <span className="rounded-full bg-[#171715]/55 px-3 py-1 text-xs font-semibold ring-1 ring-[#faf9f5]/20 backdrop-blur">
-      <span className="text-[#faf9f5]/60">{label}</span> {value}
-    </span>
+    <div className="rounded-xl border border-[#e8e3d6] bg-[#fffdf8] p-3">
+      <dt className="text-[11px] font-bold uppercase text-[#8b8174]">{label}</dt>
+      <dd className="mt-1 truncate font-mono text-sm font-semibold text-[#171715]">{value}</dd>
+    </div>
   );
 }
