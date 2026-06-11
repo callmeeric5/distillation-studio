@@ -20,6 +20,7 @@ type Entity = {
   row: number;
   col: number;
   direction: Direction;
+  pos: { row: number; col: number };
   target: { row: number; col: number } | null;
 };
 
@@ -36,6 +37,8 @@ type Collectible = {
 };
 
 type Game = {
+  cheatMode: boolean;
+  cheatUsed: boolean;
   elapsedSeconds: number;
   frightenedUntil: number;
   ghosts: Ghost[];
@@ -55,6 +58,8 @@ type Game = {
 };
 
 type Snapshot = {
+  cheatMode: boolean;
+  cheatUsed: boolean;
   completed: boolean;
   elapsedSeconds: number;
   level: number;
@@ -80,8 +85,11 @@ const directions: Record<Direction, { row: number; col: number; wall: number; op
   up: { row: -1, col: 0, wall: WALL_NORTH, opposite: WALL_SOUTH },
 };
 const preferredDirections: Direction[] = ['up', 'down', 'left', 'right'];
+const frightenedDuration = 10;
 
 const emptySnapshot: Snapshot = {
+  cheatMode: false,
+  cheatUsed: false,
   completed: false,
   elapsedSeconds: 0,
   level: 1,
@@ -102,12 +110,12 @@ function mapCollectibles(items: Collectible[]) {
   return new Map(items.map((item) => [keyOf(item.row, item.col), item]));
 }
 
-function availableDirections(level: PacmanLevel, row: number, col: number) {
-  return preferredDirections.filter((direction) => canMove(level, row, col, direction));
+function availableDirections(level: PacmanLevel, pos: { row: number; col: number }) {
+  return preferredDirections.filter((direction) => canMove(level, pos, direction));
 }
 
-function initialDirection(level: PacmanLevel, row: number, col: number) {
-  return availableDirections(level, row, col)[0] ?? 'right';
+function initialDirection(level: PacmanLevel, pos: { row: number; col: number }) {
+  return availableDirections(level, pos)[0] ?? 'right';
 }
 
 function createGame({
@@ -115,22 +123,28 @@ function createGame({
   level,
   playerName,
   previous,
+  cheatMode,
 }: {
+  cheatMode: boolean;
   config: PacmanConfig;
   level: PacmanLevel;
   playerName: string;
   previous?: Game;
 }): Game {
-  const playerDirection = initialDirection(level, level.player.row, level.player.col);
+  const playerPos = { row: level.player.row, col: level.player.col };
+  const playerDirection = initialDirection(level, playerPos);
   return {
+    cheatMode,
+    cheatUsed: previous?.cheatUsed || cheatMode,
     elapsedSeconds: 0,
     frightenedUntil: 0,
     ghosts: level.ghosts.map((ghost, index) => ({
       col: ghost.col,
       color: ghostColors[index % ghostColors.length],
-      direction: initialDirection(level, ghost.row, ghost.col),
+      direction: initialDirection(level, { row: ghost.row, col: ghost.col }),
       home: { row: ghost.home_row, col: ghost.home_col },
       mode: ghost.state === 'frighten' || ghost.state === 'eaten' ? ghost.state : 'chase',
+      pos: { row: ghost.row, col: ghost.col },
       row: ghost.row,
       target: null,
     })),
@@ -142,6 +156,7 @@ function createGame({
     player: {
       col: level.player.col,
       direction: playerDirection,
+      pos: playerPos,
       row: level.player.row,
       target: null,
     },
@@ -169,6 +184,8 @@ function snapshotGame(game: Game | null, fallback = emptySnapshot): Snapshot {
             : 'Playing';
   return {
     completed: game.status === 'won',
+    cheatMode: game.cheatMode,
+    cheatUsed: game.cheatUsed,
     elapsedSeconds: Math.round(game.totalElapsedSeconds),
     level: game.levelIndex + 1,
     levelCount: game.levelCount,
@@ -181,87 +198,106 @@ function snapshotGame(game: Game | null, fallback = emptySnapshot): Snapshot {
   };
 }
 
-function canMove(level: PacmanLevel, row: number, col: number, direction: Direction) {
-  const roundedRow = Math.round(row);
-  const roundedCol = Math.round(col);
-  if (roundedRow < 0 || roundedRow >= level.height || roundedCol < 0 || roundedCol >= level.width) return false;
+function canMove(level: PacmanLevel, pos: { row: number; col: number }, direction: Direction) {
+  if (pos.row < 0 || pos.row >= level.height || pos.col < 0 || pos.col >= level.width) return false;
   const movement = directions[direction];
-  const nextRow = roundedRow + movement.row;
-  const nextCol = roundedCol + movement.col;
+  const nextRow = pos.row + movement.row;
+  const nextCol = pos.col + movement.col;
   if (nextRow < 0 || nextRow >= level.height || nextCol < 0 || nextCol >= level.width) return false;
-  const cell = level.cells[roundedRow][roundedCol];
+  const cell = level.cells[pos.row][pos.col];
   const nextCell = level.cells[nextRow][nextCol];
   return !cell.is_42_pattern && !nextCell.is_42_pattern && (cell.walls & movement.wall) === 0;
-}
-
-function isCenter(entity: Entity) {
-  return Math.abs(entity.row - Math.round(entity.row)) < 0.08 && Math.abs(entity.col - Math.round(entity.col)) < 0.08;
 }
 
 function nextPosition(entity: Entity, direction: Direction) {
   const movement = directions[direction];
   return {
-    col: Math.round(entity.col) + movement.col,
-    row: Math.round(entity.row) + movement.row,
+    col: entity.pos.col + movement.col,
+    row: entity.pos.row + movement.row,
   };
 }
 
 function assignTarget(entity: Entity, level: PacmanLevel, direction: Direction) {
-  entity.row = Math.round(entity.row);
-  entity.col = Math.round(entity.col);
-  if (!canMove(level, entity.row, entity.col, direction)) return false;
+  if (!canMove(level, entity.pos, direction)) return false;
   entity.direction = direction;
   entity.target = nextPosition(entity, direction);
   return true;
 }
 
-function moveEntityToTarget(entity: Entity, speed: number, deltaSeconds: number) {
-  if (!entity.target) return;
-  const maxDistance = speed * deltaSeconds;
+function moveEntityToTarget(entity: Entity, distance: number) {
+  if (!entity.target) return 0;
   const rowDistance = entity.target.row - entity.row;
   const colDistance = entity.target.col - entity.col;
-  const distance = Math.abs(rowDistance) + Math.abs(colDistance);
+  const targetDistance = Math.abs(rowDistance) + Math.abs(colDistance);
 
-  if (distance <= maxDistance) {
+  if (targetDistance <= distance) {
+    const leftover = distance - targetDistance;
+    entity.pos = entity.target;
     entity.row = entity.target.row;
     entity.col = entity.target.col;
     entity.target = null;
-    return;
+    return leftover;
   }
 
-  const ratio = maxDistance / distance;
+  const ratio = distance / targetDistance;
   entity.row += rowDistance * ratio;
   entity.col += colDistance * ratio;
+  return 0;
 }
 
 function chooseGhostDirection(game: Game, ghost: Ghost) {
-  const options = (Object.keys(directions) as Direction[]).filter((direction) =>
-    canMove(game.level, ghost.row, ghost.col, direction),
-  );
+  const available = (Object.keys(directions) as Direction[]).filter((direction) => canMove(game.level, ghost.pos, direction));
+  const opposite = directionFromWall(directions[ghost.direction].opposite);
+  const options = available.length <= 1 ? available : available.filter((direction) => direction !== opposite);
   if (options.length === 0) return ghost.direction;
   const target =
     ghost.mode === 'eaten'
       ? ghost.home
       : ghost.mode === 'frighten'
-        ? { row: game.level.height - game.player.row - 1, col: game.level.width - game.player.col - 1 }
-        : game.player;
-  return options.sort((first, second) => {
-    const firstDistance = distanceAfterMove(ghost, first, target);
-    const secondDistance = distanceAfterMove(ghost, second, target);
-    return ghost.mode === 'frighten' ? secondDistance - firstDistance : firstDistance - secondDistance;
-  })[0];
+        ? game.player.pos
+        : game.player.pos;
+  return options
+    .map((direction) => ({
+      direction,
+      distance: distanceAfterMove(ghost, direction, target),
+      order: direction === ghost.direction ? -1 : preferredDirections.indexOf(direction),
+    }))
+    .sort((first, second) => {
+      const distanceDelta =
+        ghost.mode === 'frighten' ? second.distance - first.distance : first.distance - second.distance;
+      return distanceDelta || first.order - second.order;
+    })[0].direction;
 }
 
 function distanceAfterMove(entity: Entity, direction: Direction, target: { row: number; col: number }) {
-  const movement = directions[direction];
-  return Math.abs(entity.row + movement.row - target.row) + Math.abs(entity.col + movement.col - target.col);
+  const nextPos = nextPosition(entity, direction);
+  return Math.abs(nextPos.row - target.row) + Math.abs(nextPos.col - target.col);
+}
+
+function directionFromWall(wall: number) {
+  return (Object.keys(directions) as Direction[]).find((direction) => directions[direction].wall === wall) ?? 'right';
+}
+
+function samePosition(first: { row: number; col: number }, second: { row: number; col: number }) {
+  return first.row === second.row && first.col === second.col;
+}
+
+function resetGhostAtHome(ghost: Ghost) {
+  ghost.mode = 'chase';
+  ghost.direction = 'right';
+  ghost.pos = { ...ghost.home };
+  ghost.row = ghost.home.row;
+  ghost.col = ghost.home.col;
+  ghost.target = null;
 }
 
 function resetPositions(game: Game) {
-  const playerDirection = initialDirection(game.level, game.level.player.row, game.level.player.col);
+  const playerPos = { row: game.level.player.row, col: game.level.player.col };
+  const playerDirection = initialDirection(game.level, playerPos);
   game.player = {
     col: game.level.player.col,
     direction: playerDirection,
+    pos: playerPos,
     row: game.level.player.row,
     target: null,
   };
@@ -269,9 +305,10 @@ function resetPositions(game: Game) {
   game.ghosts = game.level.ghosts.map((ghost, index) => ({
     col: ghost.col,
     color: ghostColors[index % ghostColors.length],
-    direction: initialDirection(game.level, ghost.row, ghost.col),
+    direction: initialDirection(game.level, { row: ghost.row, col: ghost.col }),
     home: { row: ghost.home_row, col: ghost.home_col },
     mode: 'chase',
+    pos: { row: ghost.row, col: ghost.col },
     row: ghost.row,
     target: null,
   }));
@@ -285,27 +322,49 @@ function updateGame(game: Game, deltaSeconds: number) {
 
   game.elapsedSeconds += deltaSeconds;
   game.totalElapsedSeconds += deltaSeconds;
-  game.timeLeft = Math.max(0, game.timeLeft - deltaSeconds);
-  if (game.timeLeft <= 0) {
+  if (!game.cheatMode) {
+    game.timeLeft = Math.max(0, game.timeLeft - deltaSeconds);
+  }
+  if (!game.cheatMode && game.timeLeft <= 0) {
     game.status = 'lost';
     return;
   }
 
-  if (!game.player.target && isCenter(game.player)) {
-    game.player.row = Math.round(game.player.row);
-    game.player.col = Math.round(game.player.col);
-    if (canMove(game.level, game.player.row, game.player.col, game.requestedDirection)) {
-      assignTarget(game.player, game.level, game.requestedDirection);
-    } else if (canMove(game.level, game.player.row, game.player.col, game.player.direction)) {
-      assignTarget(game.player, game.level, game.player.direction);
-    } else {
-      const fallback = availableDirections(game.level, game.player.row, game.player.col)[0];
-      if (fallback) assignTarget(game.player, game.level, fallback);
+  let playerDistance = playerSpeed * deltaSeconds;
+  while (playerDistance > 0) {
+    if (!game.player.target) {
+      if (canMove(game.level, game.player.pos, game.requestedDirection)) {
+        game.player.direction = game.requestedDirection;
+      }
+      if (!assignTarget(game.player, game.level, game.player.direction)) break;
+    }
+    playerDistance = moveEntityToTarget(game.player, playerDistance);
+  }
+
+  for (const ghost of game.ghosts) {
+    if (ghost.mode === 'frighten' && game.elapsedSeconds > game.frightenedUntil) {
+      ghost.mode = 'chase';
+      ghost.target = null;
+    }
+    let ghostDistance = (ghost.mode === 'eaten' ? ghostSpeed * 1.45 : ghostSpeed) * deltaSeconds;
+    while (ghostDistance > 0) {
+      if (!ghost.target) {
+        if (ghost.mode === 'eaten' && samePosition(ghost.pos, ghost.home)) {
+          resetGhostAtHome(ghost);
+          break;
+        }
+        const direction = chooseGhostDirection(game, ghost);
+        if (!assignTarget(ghost, game.level, direction)) break;
+      }
+      ghostDistance = moveEntityToTarget(ghost, ghostDistance);
+      if (ghost.mode === 'eaten' && samePosition(ghost.pos, ghost.home)) {
+        resetGhostAtHome(ghost);
+        break;
+      }
     }
   }
-  moveEntityToTarget(game.player, playerSpeed, deltaSeconds);
 
-  const playerKey = keyOf(Math.round(game.player.row), Math.round(game.player.col));
+  const playerKey = keyOf(game.player.pos.row, game.player.pos.col);
   const pacgum = game.pacgums.get(playerKey);
   if (pacgum) {
     game.score += pacgum.points;
@@ -315,34 +374,25 @@ function updateGame(game: Game, deltaSeconds: number) {
   if (superPacgum) {
     game.score += superPacgum.points;
     game.superPacgums.delete(playerKey);
-    game.frightenedUntil = game.elapsedSeconds + 10;
+    game.frightenedUntil = game.elapsedSeconds + frightenedDuration;
     for (const ghost of game.ghosts) {
-      if (ghost.mode !== 'eaten') ghost.mode = 'frighten';
-    }
-  }
-
-  for (const ghost of game.ghosts) {
-    if (ghost.mode === 'frighten' && game.elapsedSeconds > game.frightenedUntil) ghost.mode = 'chase';
-    if (!ghost.target && isCenter(ghost)) {
-      ghost.row = Math.round(ghost.row);
-      ghost.col = Math.round(ghost.col);
-      if (ghost.mode === 'eaten' && ghost.row === ghost.home.row && ghost.col === ghost.home.col) {
-        ghost.mode = 'chase';
+      if (ghost.mode !== 'eaten') {
+        ghost.mode = 'frighten';
+        ghost.target = null;
       }
-      assignTarget(ghost, game.level, chooseGhostDirection(game, ghost));
     }
-    moveEntityToTarget(ghost, ghost.mode === 'eaten' ? ghostSpeed * 1.45 : ghostSpeed, deltaSeconds);
   }
 
   for (const ghost of game.ghosts) {
-    const distance = Math.hypot(game.player.row - ghost.row, game.player.col - ghost.col);
-    if (distance > 0.45) continue;
+    if (!samePosition(game.player.pos, ghost.pos)) continue;
     if (ghost.mode === 'frighten') {
       ghost.mode = 'eaten';
+      ghost.target = null;
       game.score += game.level.points.ghost;
       continue;
     }
     if (ghost.mode !== 'chase') continue;
+    if (game.cheatMode) continue;
     game.lives -= 1;
     if (game.lives <= 0) {
       game.status = 'lost';
@@ -382,7 +432,7 @@ function drawGame(canvas: HTMLCanvasElement, game: Game | null) {
     return;
   }
 
-  const padding = 28;
+  const padding = 22;
   const boardSize = Math.min(width - padding * 2, height - padding * 2);
   const cellSize = boardSize / Math.max(game.level.width, game.level.height);
   const offsetX = (width - game.level.width * cellSize) / 2;
@@ -495,6 +545,7 @@ export function PacManStudio({
   const [snapshot, setSnapshot] = useState(emptySnapshot);
   const [scores, setScores] = useState<PacmanScore[]>([]);
   const [playerName, setPlayerName] = useState('');
+  const [cheatMode, setCheatMode] = useState(false);
   const [message, setMessage] = useState('Enter your name before starting.');
 
   const refreshScores = useCallback(async () => {
@@ -505,14 +556,14 @@ export function PacManStudio({
     }
   }, []);
 
-  const loadLevel = useCallback(async (levelIndex: number, player: string, previous?: Game) => {
+  const loadLevel = useCallback(async (levelIndex: number, player: string, previous?: Game, nextCheatMode = cheatMode) => {
     loadingNextLevelRef.current = true;
     setMessage(levelIndex === 0 ? 'Loading game...' : 'Loading next level...');
     try {
       const config = configRef.current ?? (await fetchPacmanConfig());
       configRef.current = config;
       const level = await fetchPacmanLevel(levelIndex);
-      const game = createGame({ config, level, playerName: player, previous });
+      const game = createGame({ cheatMode: nextCheatMode, config, level, playerName: player, previous });
       gameRef.current = game;
       setSnapshot(snapshotGame(game));
       setMessage('Use Arrow keys or WASD.');
@@ -523,7 +574,7 @@ export function PacManStudio({
     } finally {
       loadingNextLevelRef.current = false;
     }
-  }, []);
+  }, [cheatMode]);
 
   const startRun = useCallback(() => {
     const cleanName = playerName.trim();
@@ -553,6 +604,10 @@ export function PacManStudio({
   const submitFinalScore = useCallback(async () => {
     const game = gameRef.current;
     if (!game || (game.status !== 'won' && game.status !== 'lost')) return;
+    if (game.cheatUsed) {
+      setMessage('Cheat runs are not saved to the leaderboard.');
+      return;
+    }
     try {
       await submitPacmanScore({
         completed: game.status === 'won',
@@ -567,6 +622,20 @@ export function PacManStudio({
       setMessage(error instanceof Error ? error.message : 'Could not submit score.');
     }
   }, [refreshScores]);
+
+  const toggleCheatMode = useCallback(() => {
+    setCheatMode((current) => {
+      const next = !current;
+      const game = gameRef.current;
+      if (game && game.status !== 'won' && game.status !== 'lost') {
+        game.cheatMode = next;
+        game.cheatUsed = game.cheatUsed || next;
+        setSnapshot(snapshotGame(game));
+      }
+      setMessage(next ? 'Cheat mode enabled: no timer or life loss.' : 'Cheat mode disabled.');
+      return next;
+    });
+  }, []);
 
   const setDirection = useCallback((direction: Direction) => {
     const game = gameRef.current;
@@ -593,6 +662,12 @@ export function PacManStudio({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      const isEditableTarget =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
       const keyMap: Record<string, Direction | undefined> = {
         ArrowDown: 'down',
         ArrowLeft: 'left',
@@ -604,6 +679,7 @@ export function PacManStudio({
         KeyW: 'up',
       };
       const direction = keyMap[event.code];
+      if (isEditableTarget) return;
       if (!direction) {
         if (event.code === 'Space') togglePause();
         return;
@@ -625,7 +701,7 @@ export function PacManStudio({
       if (game) {
         updateGame(game, deltaSeconds);
         if (game.status === 'advancing' && !loadingNextLevelRef.current) {
-          void loadLevel(game.levelIndex + 1, game.playerName, game);
+          void loadLevel(game.levelIndex + 1, game.playerName, game, game.cheatMode);
         }
         setSnapshot(snapshotGame(gameRef.current));
       }
@@ -669,7 +745,7 @@ export function PacManStudio({
       </div>
 
       <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-7">
-        <section className="relative mx-auto aspect-square w-full max-w-[760px] overflow-hidden rounded-2xl border border-[#d8d1c2] bg-[#fffdf8] shadow-sm">
+        <section className="relative mx-auto aspect-square w-full max-w-[620px] overflow-hidden rounded-2xl border border-[#d8d1c2] bg-[#fffdf8] shadow-sm">
           <canvas
             aria-label="Pac-Man playable maze"
             className="block h-full w-full bg-[#fffdf8]"
@@ -719,9 +795,15 @@ export function PacManStudio({
                 <p className="mt-3 text-sm leading-6 text-[#5e5d59]">
                   Level {snapshot.level} reached in {snapshot.elapsedSeconds}s.
                 </p>
+                {snapshot.cheatUsed ? (
+                  <p className="mt-2 text-sm font-semibold text-[#8a4429]">
+                    Cheat runs are not saved to the leaderboard.
+                  </p>
+                ) : null}
                 <div className="mt-5 flex flex-wrap gap-2">
                   <button
-                    className="min-h-11 rounded-lg bg-[#30302e] px-5 text-sm font-semibold text-[#faf9f5] transition hover:bg-[#171715]"
+                    className="min-h-11 rounded-lg bg-[#30302e] px-5 text-sm font-semibold text-[#faf9f5] transition hover:bg-[#171715] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={snapshot.cheatUsed}
                     onClick={submitFinalScore}
                     type="button"
                   >
@@ -754,7 +836,7 @@ export function PacManStudio({
               <Metric label="Level" value={`${snapshot.level}/${snapshot.levelCount}`} />
               <Metric label="Score" value={snapshot.score.toLocaleString()} />
               <Metric label="Lives" value={snapshot.lives.toString()} />
-              <Metric label="Time" value={`${snapshot.timeLeft}s`} />
+              <Metric label="Time" value={snapshot.cheatMode ? '∞' : `${snapshot.timeLeft}s`} />
               <Metric label="Elapsed" value={`${snapshot.elapsedSeconds}s`} />
             </dl>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -772,6 +854,18 @@ export function PacManStudio({
                 type="button"
               >
                 {snapshot.status === 'paused' ? 'Resume' : 'Pause'}
+              </button>
+              <button
+                aria-pressed={cheatMode}
+                className={`min-h-10 rounded-lg border px-4 text-sm font-semibold transition ${
+                  cheatMode
+                    ? 'border-[#c96442] bg-[#c96442] text-[#faf9f5] hover:bg-[#b65334]'
+                    : 'border-[#e8e3d6] bg-[#fffdf8] text-[#5e5d59] hover:bg-white'
+                }`}
+                onClick={toggleCheatMode}
+                type="button"
+              >
+                Cheat mode
               </button>
             </div>
             <p className="mt-3 text-xs font-semibold text-[#8b8174]">{message}</p>
