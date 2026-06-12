@@ -11,8 +11,8 @@ from backend.pac_man.src.utils import DIRECTION
 
 RUN_TTL_SECONDS = 60 * 30
 MAX_TICK_SECONDS = 0.08
-PLAYER_SPEED = 7.0
-GHOST_SPEED = 4.5
+PLAYER_SPEED = 5.0
+GHOST_SPEED = 4.0
 
 
 class PacmanSessionError(ValueError):
