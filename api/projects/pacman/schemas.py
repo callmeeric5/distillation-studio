@@ -145,3 +145,25 @@ class PacmanRunSnapshot(BaseModel):
     ghosts: list[PacmanGhostSnapshot]
     pacgums: list[PacmanCollectible]
     super_pacgums: list[PacmanCollectible]
+
+
+class PacmanRunFrame(BaseModel):
+    run_id: str
+    player_name: str
+    status: str
+    status_text: str
+    completed: bool
+    score_eligible: bool
+    cheat_mode: bool
+    cheat_used: bool
+    level: int
+    level_index: int
+    level_count: int
+    score: int
+    lives: int
+    time_left: int
+    elapsed_seconds: int
+    player: PacmanActorPosition
+    ghosts: list[PacmanGhostSnapshot]
+    pacgums: list[PacmanCollectible]
+    super_pacgums: list[PacmanCollectible]

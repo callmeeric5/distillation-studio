@@ -115,6 +115,13 @@ export type PacmanRunSnapshot = {
   super_pacgums: PacmanCollectible[];
 };
 
+export type PacmanRunFrame = Omit<PacmanRunSnapshot, 'width' | 'height' | 'seed' | 'points' | 'cells'>;
+
+export type PacmanStreamMessage =
+  | { kind: 'snapshot'; data: PacmanRunSnapshot }
+  | { kind: 'frame'; data: PacmanRunFrame }
+  | { kind: 'error'; detail: string };
+
 export async function fetchPacmanConfig() {
   const response = await fetch('/api/projects/pacman/config');
   await assertJsonResponse(response, 'Pac-Man config');
@@ -208,6 +215,11 @@ export async function submitPacmanRunScore(runId: string) {
   const data = (await response.json()) as PacmanScore & { detail?: string };
   if (!response.ok) throw new Error(data.detail ?? 'Could not submit score.');
   return data;
+}
+
+export function pacmanStreamUrl(runId: string) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/api/projects/pacman/runs/${runId}/stream`;
 }
 
 async function assertJsonResponse(response: Response, label: string) {

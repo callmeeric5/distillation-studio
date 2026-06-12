@@ -11,6 +11,8 @@ from backend.pac_man.src.utils import DIRECTION
 
 RUN_TTL_SECONDS = 60 * 30
 MAX_TICK_SECONDS = 0.08
+PLAYER_SPEED = 7.0
+GHOST_SPEED = 4.5
 
 
 class PacmanSessionError(ValueError):
@@ -77,6 +79,7 @@ class PacmanRun:
         if not self.level.win:
             return
 
+        previous_level_index = self.level_index
         if self.level_index >= len(self.config.levels) - 1:
             self.status = "won"
             return
@@ -89,6 +92,8 @@ class PacmanRun:
             initial_score=previous_score,
             initial_lives=previous_lives,
         )
+        if self.level_index != previous_level_index:
+            self.last_seen = monotonic()
 
     def restart(self, cheat_mode: bool | None = None) -> None:
         self.last_seen = monotonic()
@@ -182,13 +187,77 @@ class PacmanRun:
             ],
         }
 
+    def frame_snapshot(self) -> dict:
+        level = self.level
+        status_text = {
+            "playing": "Playing",
+            "paused": "Paused",
+            "won": "Run complete",
+            "lost": "Game over",
+        }.get(self.status, "Playing")
+        return {
+            "run_id": self.run_id,
+            "player_name": self.player_name,
+            "status": self.status,
+            "status_text": status_text,
+            "completed": self.status == "won",
+            "score_eligible": (
+                not self.cheat_used
+                and not self.score_saved
+                and self.status in {"won", "lost"}
+            ),
+            "cheat_mode": self.cheat_mode,
+            "cheat_used": self.cheat_used,
+            "level": self.level_index + 1,
+            "level_index": self.level_index,
+            "level_count": len(self.config.levels),
+            "score": level.player.score,
+            "lives": level.player.lives,
+            "time_left": max(0, int(level.time_left + 0.999)),
+            "elapsed_seconds": int(self.total_elapsed_seconds + 0.5),
+            "player": {
+                "row": level.player.row,
+                "col": level.player.col,
+                "pos_row": level.player.pos.x,
+                "pos_col": level.player.pos.y,
+                "direction": level.player.direction.value,
+            },
+            "ghosts": [
+                {
+                    "row": ghost.row,
+                    "col": ghost.col,
+                    "pos_row": ghost.pos.x,
+                    "pos_col": ghost.pos.y,
+                    "home_row": ghost.home.x,
+                    "home_col": ghost.home.y,
+                    "state": ghost.state.value,
+                    "direction": ghost.direction.value,
+                }
+                for ghost in level.ghosts
+            ],
+            "pacgums": [
+                {"row": pacgum.pos.x, "col": pacgum.pos.y, "points": pacgum.points}
+                for pacgum in level.pacgums
+            ],
+            "super_pacgums": [
+                {"row": pacgum.pos.x, "col": pacgum.pos.y, "points": pacgum.points}
+                for pacgum in level.super_pacgums
+            ],
+        }
+
     def _build_level(
         self,
         level_index: int,
         initial_score: int = 0,
         initial_lives: int | None = None,
     ) -> Level:
-        level = Level(level_index, self.config, is_cheat_mode=self.cheat_mode)
+        level = Level(
+            level_index,
+            self.config,
+            player_speed=PLAYER_SPEED,
+            ghost_speed=GHOST_SPEED + min(level_index, 5) * 0.25,
+            is_cheat_mode=self.cheat_mode,
+        )
         level.player.score = initial_score
         if initial_lives is not None:
             level.player.lives = initial_lives

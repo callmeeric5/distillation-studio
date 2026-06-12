@@ -196,3 +196,7 @@ def _get_run(run_id: str):
         return RUNS.get(run_id)
     except PacmanSessionError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def get_run_or_raise(run_id: str):
+    return _get_run(run_id)

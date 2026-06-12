@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   fetchPacmanScores,
+  pacmanStreamUrl,
   restartPacmanRun,
   startPacmanRun,
   submitPacmanRunScore,
-  tickPacmanRun,
   updatePacmanRunInput,
   type PacmanCell,
+  type PacmanRunFrame,
   type PacmanRunSnapshot,
+  type PacmanStreamMessage,
   type PacmanScore,
 } from './api/pacman';
 import { CollapsibleDescription } from './components/CollapsibleDescription';
@@ -189,6 +191,34 @@ function normalizeDirection(direction: string): Direction {
     : 'right';
 }
 
+function interpolateSnapshot(
+  previous: PacmanRunSnapshot | null,
+  current: PacmanRunSnapshot | null,
+  currentAt: number,
+  now: number,
+) {
+  if (!current) return null;
+  if (!previous || previous.level_index !== current.level_index) return current;
+  const progress = Math.min(1, Math.max(0, (now - currentAt) / (1000 / 30)));
+  return {
+    ...current,
+    ghosts: current.ghosts.map((ghost, index) => {
+      const previousGhost = previous.ghosts[index];
+      if (!previousGhost || previousGhost.state !== ghost.state) return ghost;
+      return {
+        ...ghost,
+        col: previousGhost.col + (ghost.col - previousGhost.col) * progress,
+        row: previousGhost.row + (ghost.row - previousGhost.row) * progress,
+      };
+    }),
+    player: {
+      ...current.player,
+      col: previous.player.col + (current.player.col - previous.player.col) * progress,
+      row: previous.player.row + (current.player.row - previous.player.row) * progress,
+    },
+  };
+}
+
 export function PacManStudio({
   description,
   fullDescription,
@@ -200,9 +230,11 @@ export function PacManStudio({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<number | null>(null);
-  const lastTickRef = useRef<number | null>(null);
-  const tickInFlightRef = useRef(false);
+  const socketRef = useRef<WebSocket | null>(null);
   const snapshotRef = useRef<PacmanRunSnapshot | null>(null);
+  const previousFrameRef = useRef<PacmanRunSnapshot | null>(null);
+  const currentFrameRef = useRef<PacmanRunSnapshot | null>(null);
+  const currentFrameAtRef = useRef(0);
   const [snapshot, setSnapshot] = useState<PacmanRunSnapshot | null>(null);
   const [viewStatus, setViewStatus] = useState<ViewStatus>('idle');
   const [scores, setScores] = useState<PacmanScore[]>([]);
@@ -216,9 +248,69 @@ export function PacManStudio({
 
   const setRunSnapshot = useCallback((next: PacmanRunSnapshot) => {
     snapshotRef.current = next;
+    previousFrameRef.current = currentFrameRef.current ?? next;
+    currentFrameRef.current = next;
+    currentFrameAtRef.current = performance.now();
     setSnapshot(next);
     setViewStatus(next.status);
     setCheatMode(next.cheat_mode);
+  }, []);
+
+  const applyFrame = useCallback((frame: PacmanRunFrame) => {
+    const board = snapshotRef.current;
+    if (!board) return;
+    const next: PacmanRunSnapshot = { ...board, ...frame };
+    snapshotRef.current = next;
+    previousFrameRef.current = currentFrameRef.current ?? next;
+    currentFrameRef.current = next;
+    currentFrameAtRef.current = performance.now();
+    setSnapshot(next);
+    setViewStatus(next.status);
+    setCheatMode(next.cheat_mode);
+  }, []);
+
+  const closeStream = useCallback(() => {
+    socketRef.current?.close();
+    socketRef.current = null;
+  }, []);
+
+  const openStream = useCallback((runId: string) => {
+    closeStream();
+    const socket = new WebSocket(pacmanStreamUrl(runId));
+    socketRef.current = socket;
+
+    socket.onopen = () => {
+      setMessage('Use Arrow keys or WASD.');
+    };
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data as string) as PacmanStreamMessage;
+        if (message.kind === 'snapshot') {
+          setRunSnapshot(message.data);
+          return;
+        }
+        if (message.kind === 'frame') {
+          applyFrame(message.data);
+          return;
+        }
+        setMessage(message.detail);
+      } catch {
+        setMessage('Pac-Man stream returned an invalid message.');
+      }
+    };
+    socket.onerror = () => {
+      setMessage('Pac-Man stream connection failed.');
+    };
+    socket.onclose = () => {
+      if (socketRef.current === socket) socketRef.current = null;
+    };
+  }, [applyFrame, closeStream, setRunSnapshot]);
+
+  const sendStreamMessage = useCallback((payload: { direction?: Direction; paused?: boolean; cheat_mode?: boolean }) => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify(payload));
+    return true;
   }, []);
 
   const refreshScores = useCallback(async () => {
@@ -240,12 +332,13 @@ export function PacManStudio({
     try {
       const next = await startPacmanRun({ cheat_mode: cheatMode, player_name: cleanName });
       setRunSnapshot(next);
+      openStream(next.run_id);
       setMessage('Use Arrow keys or WASD.');
     } catch (error) {
       setViewStatus('error');
       setMessage(error instanceof Error ? error.message : 'Could not start Pac-Man.');
     }
-  }, [cheatMode, playerName, setRunSnapshot]);
+  }, [cheatMode, openStream, playerName, setRunSnapshot]);
 
   const restart = useCallback(async () => {
     const activeName = snapshotRef.current?.player_name ?? playerName.trim();
@@ -260,16 +353,23 @@ export function PacManStudio({
         ? await restartPacmanRun(snapshotRef.current.run_id, { cheat_mode: cheatMode, player_name: activeName })
         : await startPacmanRun({ cheat_mode: cheatMode, player_name: activeName });
       setRunSnapshot(next);
+      openStream(next.run_id);
       setMessage('Use Arrow keys or WASD.');
     } catch (error) {
       setViewStatus('error');
       setMessage(error instanceof Error ? error.message : 'Could not restart Pac-Man.');
     }
-  }, [cheatMode, playerName, setRunSnapshot]);
+  }, [cheatMode, openStream, playerName, setRunSnapshot]);
 
   const updateInput = useCallback(async (payload: { direction?: Direction; paused?: boolean; cheat_mode?: boolean }) => {
     const active = snapshotRef.current;
     if (!active || active.status === 'won' || active.status === 'lost') return;
+    if (sendStreamMessage(payload)) {
+      if (payload.cheat_mode !== undefined) {
+        setMessage(payload.cheat_mode ? 'Cheat mode enabled: no timer or life loss.' : 'Cheat mode disabled.');
+      }
+      return;
+    }
     try {
       const next = await updatePacmanRunInput(active.run_id, payload);
       setRunSnapshot(next);
@@ -279,7 +379,7 @@ export function PacManStudio({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not update Pac-Man input.');
     }
-  }, [setRunSnapshot]);
+  }, [sendStreamMessage, setRunSnapshot]);
 
   const togglePause = useCallback(() => {
     const active = snapshotRef.current;
@@ -360,28 +460,17 @@ export function PacManStudio({
 
   useEffect(() => {
     const tick = (timestamp: number) => {
-      const active = snapshotRef.current;
-      const lastTick = lastTickRef.current ?? timestamp;
-      const deltaSeconds = Math.min(0.08, (timestamp - lastTick) / 1000);
-      lastTickRef.current = timestamp;
-
-      if (
-        active &&
-        active.status === 'playing' &&
-        !tickInFlightRef.current &&
-        deltaSeconds > 0
-      ) {
-        tickInFlightRef.current = true;
-        void tickPacmanRun(active.run_id, deltaSeconds)
-          .then(setRunSnapshot)
-          .catch((error: unknown) => {
-            setMessage(error instanceof Error ? error.message : 'Could not update Pac-Man run.');
-          })
-          .finally(() => {
-            tickInFlightRef.current = false;
-          });
+      if (canvasRef.current) {
+        drawGame(
+          canvasRef.current,
+          interpolateSnapshot(
+            previousFrameRef.current,
+            currentFrameRef.current,
+            currentFrameAtRef.current,
+            timestamp,
+          ),
+        );
       }
-      if (canvasRef.current) drawGame(canvasRef.current, snapshotRef.current);
       frameRef.current = requestAnimationFrame(tick);
     };
     frameRef.current = requestAnimationFrame(tick);
@@ -389,7 +478,9 @@ export function PacManStudio({
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     };
-  }, [setRunSnapshot]);
+  }, []);
+
+  useEffect(() => closeStream, [closeStream]);
 
   return (
     <article className="overflow-hidden rounded-2xl border border-[#e8e3d6] bg-[#fffdf8]">
