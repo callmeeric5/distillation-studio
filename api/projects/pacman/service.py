@@ -4,13 +4,15 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from api.projects.pacman.schemas import PacmanScoreCreate
+from api.projects.pacman.schemas import PacmanRunCreate, PacmanRunInput, PacmanRunTick, PacmanScoreCreate
 from backend.pac_man.src.level import Level
 from backend.pac_man.src.parser import Config, Parser
+from backend.pac_man.src.session import PacmanRunStore, PacmanSessionError
 from api.projects.pacman.storage import insert_score, list_scores
 
 
 CONFIG_PATH = Path(__file__).resolve().parents[3] / "backend" / "pac_man" / "config.json"
+RUNS = PacmanRunStore()
 
 
 def _load_config() -> Config:
@@ -125,3 +127,72 @@ async def create_score(score: PacmanScoreCreate) -> dict:
 
 async def get_scores(limit: int = 10) -> list[dict]:
     return [_serialize_score(row) for row in await list_scores(limit)]
+
+
+def create_run(payload: PacmanRunCreate) -> dict:
+    try:
+        run = RUNS.create(payload.player_name, _load_config(), payload.cheat_mode)
+    except PacmanSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return run.snapshot()
+
+
+def update_run_input(run_id: str, payload: PacmanRunInput) -> dict:
+    run = _get_run(run_id)
+    try:
+        if payload.direction is not None:
+            run.request_direction(payload.direction)
+        if payload.paused is not None:
+            run.set_paused(payload.paused)
+        if payload.cheat_mode is not None:
+            run.set_cheat_mode(payload.cheat_mode)
+    except PacmanSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return run.snapshot()
+
+
+def tick_run(run_id: str, payload: PacmanRunTick) -> dict:
+    run = _get_run(run_id)
+    run.tick(payload.delta_seconds)
+    return run.snapshot()
+
+
+def restart_run(run_id: str, payload: PacmanRunCreate | None = None) -> dict:
+    run = _get_run(run_id)
+    try:
+        if payload is not None:
+            run.player_name = payload.player_name.strip()
+            run.restart(payload.cheat_mode)
+        else:
+            run.restart()
+    except PacmanSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return run.snapshot()
+
+
+async def create_run_score(run_id: str) -> dict:
+    run = _get_run(run_id)
+    snapshot = run.snapshot()
+    if not snapshot["score_eligible"]:
+        raise HTTPException(
+            status_code=400,
+            detail="This Pac-Man run is not eligible for the leaderboard.",
+        )
+    row = await insert_score(
+        PacmanScoreCreate(
+            completed=snapshot["completed"],
+            elapsed_seconds=snapshot["elapsed_seconds"],
+            level_reached=snapshot["level"],
+            player_name=snapshot["player_name"],
+            score=snapshot["score"],
+        )
+    )
+    run.score_saved = True
+    return _serialize_score(row)
+
+
+def _get_run(run_id: str):
+    try:
+        return RUNS.get(run_id)
+    except PacmanSessionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

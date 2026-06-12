@@ -46,3 +46,5 @@ tmp/
 temp/
 
 **/AGENTS.md
+!AGENTS.md
+!frontend/AGENTS.md

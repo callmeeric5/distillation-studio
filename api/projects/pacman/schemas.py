@@ -89,3 +89,59 @@ class PacmanLevelResponse(BaseModel):
     ghosts: list[PacmanGhostInit]
     pacgums: list[PacmanCollectible]
     super_pacgums: list[PacmanCollectible]
+
+
+class PacmanRunCreate(BaseModel):
+    player_name: str = Field(..., min_length=1, max_length=32)
+    cheat_mode: bool = False
+
+
+class PacmanRunInput(BaseModel):
+    direction: str | None = None
+    paused: bool | None = None
+    cheat_mode: bool | None = None
+
+
+class PacmanRunTick(BaseModel):
+    delta_seconds: float = Field(..., ge=0, le=1)
+
+
+class PacmanActorPosition(BaseModel):
+    row: float
+    col: float
+    pos_row: int
+    pos_col: int
+    direction: str
+
+
+class PacmanGhostSnapshot(PacmanActorPosition):
+    home_row: int
+    home_col: int
+    state: str
+
+
+class PacmanRunSnapshot(BaseModel):
+    run_id: str
+    player_name: str
+    status: str
+    status_text: str
+    completed: bool
+    score_eligible: bool
+    cheat_mode: bool
+    cheat_used: bool
+    level: int
+    level_index: int
+    level_count: int
+    score: int
+    lives: int
+    time_left: int
+    elapsed_seconds: int
+    width: int
+    height: int
+    seed: int | None = None
+    points: PacmanPointsConfig
+    cells: list[list[PacmanCell]]
+    player: PacmanActorPosition
+    ghosts: list[PacmanGhostSnapshot]
+    pacgums: list[PacmanCollectible]
+    super_pacgums: list[PacmanCollectible]

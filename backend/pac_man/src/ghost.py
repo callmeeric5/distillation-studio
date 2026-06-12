@@ -128,25 +128,25 @@ class Ghost:
         if self.state == GhostState.EATEN:
             return min(
                 directions,
-                key=lambda d: self._distance_to_target(
-                    d,
-                    self.home,
+                key=lambda d: (
+                    self._distance_to_target(d, self.home),
+                    self._direction_order(d),
                 ),
             )
         if self.state == GhostState.CHASE:
             return min(
                 directions,
-                key=lambda d: self._distance_to_target(
-                    d,
-                    player_pos,
+                key=lambda d: (
+                    self._distance_to_target(d, player_pos),
+                    self._direction_order(d),
                 ),
             )
         if self.state == GhostState.FRIGHTEN:
             return max(
                 directions,
-                key=lambda d: self._distance_to_target(
-                    d,
-                    player_pos,
+                key=lambda d: (
+                    self._distance_to_target(d, player_pos),
+                    -self._direction_order(d),
                 ),
             )
         return random.choice(directions)
@@ -176,3 +176,8 @@ class Ghost:
         """Mahathon distance between current pos and target pos"""
         next_pos = next_position(self.pos, direction)
         return abs(next_pos.x - target.x) + abs(next_pos.y - target.y)
+
+    def _direction_order(self, direction: DIRECTION) -> int:
+        if direction == self.direction:
+            return -1
+        return list(DIRECTION).index(direction)

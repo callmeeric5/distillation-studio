@@ -56,11 +56,12 @@ class Level:
         if self.win or self.game_over:
             return
 
-        self.time_left -= max(0.0, delta_time)
-        if self.time_left <= 0:
-            self.game_over = True
-            logger.info("Time is up, you lose!")
-            return
+        if not self.is_cheat_mode:
+            self.time_left -= max(0.0, delta_time)
+            if self.time_left <= 0:
+                self.game_over = True
+                logger.info("Time is up, you lose!")
+                return
 
         self.player.on_update(delta_time)
 
