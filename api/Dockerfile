@@ -32,6 +32,7 @@ COPY api/ ./api/
 RUN mkdir -p ./backend
 COPY backend/__init__.py ./backend/__init__.py
 COPY backend/a_maze_ing/ ./backend/a_maze_ing/
+COPY backend/fly_in/ ./backend/fly_in/
 COPY backend/pac_man/ ./backend/pac_man/
 COPY backend/trace_ops_agent/ ./backend/trace_ops_agent/
 RUN mkdir -p ./backend/push_swap

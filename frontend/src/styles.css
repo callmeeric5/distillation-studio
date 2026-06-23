@@ -217,6 +217,22 @@ button:disabled {
   width: 0;
 }
 
+.fly-in-waiting-drone {
+  animation: fly-in-waiting-pulse 900ms ease-in-out infinite;
+  transform-box: fill-box;
+}
+
+@keyframes fly-in-waiting-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
 .maze-marker-exit {
   background: linear-gradient(145deg, #fff6ed, #f0d6c0);
   border-color: rgb(130 55 39 / 0.9);

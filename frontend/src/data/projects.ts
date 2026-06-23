@@ -1,4 +1,5 @@
 import mazeCover from '../assets/a-maze-ing-cover.png';
+import flyInCover from '../assets/fly-in-cover.png';
 import pacManCover from '../assets/pac-man-cover.png';
 import pushSwapCover from '../assets/push-swap-cover.png';
 import traceOpsCover from '../assets/trace-ops-agent-cover.png';
@@ -42,13 +43,15 @@ export const projects42: Project[] = [
     title: 'Fly_In',
     category: '42 project',
     language: 'Common Core / python',
-    status: 'in progress',
-    description: 'A work-in-progress 42 project entry reserved for notes, implementation details, and demos.',
+    status: 'ready',
+    description: 'A turn-by-turn drone routing simulation with capacity-aware zones, connections, and route playback.',
     fullDescription:
-      'Fly_In is currently in progress. This page will become the place for the project description, technical notes, and any browser-friendly output once the implementation is ready to present.',
+      'Fly_In routes drones from a start zone to an end zone through a constrained network. The shared FastAPI backend reads the original map files, computes drone paths, runs the turn scheduler, and returns a trace that the browser replays as moving and waiting drones.',
+    endpoint: '/api/projects/fly-in/maps',
+    coverImage: flyInCover,
     slug: 'flyin',
     routeSlug: 'fly-in',
-    tags: ['42', 'systems', 'demo'],
+    tags: ['routing', 'simulation', 'capacity'],
   },
   {
     title: 'Call_Me_Maybe',

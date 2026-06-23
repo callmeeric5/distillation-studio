@@ -1,4 +1,5 @@
 import { AMazeIngStudio } from '../AMazeIngStudio';
+import { FlyInStudio } from '../FlyInStudio';
 import { PacManStudio } from '../PacManStudio';
 import { PushSwapStudio } from '../PushSwapStudio';
 import { TraceOpsAgentStudio } from '../TraceOpsAgentStudio';
@@ -32,6 +33,16 @@ export function ProjectPage({
   if (project.slug === 'a-maze-ing') {
     return (
       <AMazeIngStudio
+        description={project.description}
+        fullDescription={project.fullDescription}
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (project.slug === 'flyin') {
+    return (
+      <FlyInStudio
         description={project.description}
         fullDescription={project.fullDescription}
         onBack={onBack}
