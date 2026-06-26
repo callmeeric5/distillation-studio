@@ -95,6 +95,8 @@ export type PacmanRunSnapshot = {
   status_text: string;
   completed: boolean;
   score_eligible: boolean;
+  score_saved: boolean;
+  score_save_error: string | null;
   cheat_mode: boolean;
   cheat_used: boolean;
   level: number;

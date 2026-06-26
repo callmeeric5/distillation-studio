@@ -33,7 +33,7 @@ export const projects42: Project[] = [
     status: 'ready',
     description: 'A multi-level browser arcade game with maze movement, ghost AI, scoring, and a live leaderboard.',
     fullDescription:
-      'Pac_Man adapts the original Python Arcade project into a browser-playable Canvas game. Move through generated mazes, collect pacgums, use power dots to turn the chase around, advance through several levels, then submit your run to the Postgres-backed leaderboard.',
+      'Pac_Man adapts the original Python Arcade project into a browser-playable Canvas game. Move through generated mazes, collect pacgums, use power dots to turn the chase around, advance through several levels, then let the Postgres-backed leaderboard save eligible runs automatically.',
     coverImage: pacManCover,
     slug: 'pacman',
     routeSlug: 'pac-man',

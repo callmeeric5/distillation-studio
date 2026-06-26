@@ -151,9 +151,10 @@ def update_run_input(run_id: str, payload: PacmanRunInput) -> dict:
     return run.snapshot()
 
 
-def tick_run(run_id: str, payload: PacmanRunTick) -> dict:
+async def tick_run(run_id: str, payload: PacmanRunTick) -> dict:
     run = _get_run(run_id)
     run.tick(payload.delta_seconds)
+    await auto_save_run_score(run)
     return run.snapshot()
 
 
@@ -172,23 +173,45 @@ def restart_run(run_id: str, payload: PacmanRunCreate | None = None) -> dict:
 
 async def create_run_score(run_id: str) -> dict:
     run = _get_run(run_id)
+    if run.score_saved:
+        raise HTTPException(status_code=400, detail="This Pac-Man score is already saved.")
+
     snapshot = run.snapshot()
     if not snapshot["score_eligible"]:
         raise HTTPException(
             status_code=400,
             detail="This Pac-Man run is not eligible for the leaderboard.",
         )
-    row = await insert_score(
-        PacmanScoreCreate(
-            completed=snapshot["completed"],
-            elapsed_seconds=snapshot["elapsed_seconds"],
-            level_reached=snapshot["level"],
-            player_name=snapshot["player_name"],
-            score=snapshot["score"],
-        )
-    )
-    run.score_saved = True
+    row = await insert_score(_score_payload_from_snapshot(snapshot))
+    run.mark_score_saved()
     return _serialize_score(row)
+
+
+async def auto_save_run_score(run) -> None:
+    if run.status not in {"won", "lost"} or run.score_saved:
+        return
+
+    snapshot = run.snapshot()
+    if not snapshot["score_eligible"]:
+        return
+
+    try:
+        await insert_score(_score_payload_from_snapshot(snapshot))
+    except Exception as exc:
+        run.mark_score_save_failed(str(exc) or exc.__class__.__name__)
+        return
+
+    run.mark_score_saved()
+
+
+def _score_payload_from_snapshot(snapshot: dict) -> PacmanScoreCreate:
+    return PacmanScoreCreate(
+        completed=snapshot["completed"],
+        elapsed_seconds=snapshot["elapsed_seconds"],
+        level_reached=snapshot["level"],
+        player_name=snapshot["player_name"],
+        score=snapshot["score"],
+    )
 
 
 def _get_run(run_id: str):

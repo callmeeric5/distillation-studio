@@ -217,6 +217,19 @@ button:disabled {
   width: 0;
 }
 
+.fly-in-drone-flag {
+  transition:
+    transform var(--fly-in-transition-ms, 420ms) cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease;
+  transform-box: fill-box;
+  will-change: transform;
+}
+
+.fly-in-drone-snap {
+  transition:
+    opacity 160ms ease;
+}
+
 .fly-in-waiting-drone {
   animation: fly-in-waiting-pulse 900ms ease-in-out infinite;
   transform-box: fill-box;

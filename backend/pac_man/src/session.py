@@ -12,7 +12,7 @@ from backend.pac_man.src.utils import DIRECTION
 RUN_TTL_SECONDS = 60 * 30
 MAX_TICK_SECONDS = 0.08
 PLAYER_SPEED = 5.0
-GHOST_SPEED = 4.0
+GHOST_SPEED = 3.0
 
 
 class PacmanSessionError(ValueError):
@@ -30,6 +30,7 @@ class PacmanRun:
     status: str = "playing"
     cheat_used: bool = False
     score_saved: bool = False
+    score_save_error: str | None = None
     last_seen: float = field(default_factory=monotonic)
     _level: Level = field(init=False, repr=False)
 
@@ -104,39 +105,24 @@ class PacmanRun:
             self.cheat_mode = cheat_mode
         self.cheat_used = self.cheat_mode
         self.score_saved = False
+        self.score_save_error = None
         self.level_index = 0
         self.total_elapsed_seconds = 0.0
         self.status = "playing"
         self._level = self._build_level(0)
 
+    def mark_score_saved(self) -> None:
+        self.score_saved = True
+        self.score_save_error = None
+
+    def mark_score_save_failed(self, error: str) -> None:
+        self.score_saved = False
+        self.score_save_error = error
+
     def snapshot(self) -> dict:
         level = self.level
-        status_text = {
-            "playing": "Playing",
-            "paused": "Paused",
-            "won": "Run complete",
-            "lost": "Game over",
-        }.get(self.status, "Playing")
         return {
-            "run_id": self.run_id,
-            "player_name": self.player_name,
-            "status": self.status,
-            "status_text": status_text,
-            "completed": self.status == "won",
-            "score_eligible": (
-                not self.cheat_used
-                and not self.score_saved
-                and self.status in {"won", "lost"}
-            ),
-            "cheat_mode": self.cheat_mode,
-            "cheat_used": self.cheat_used,
-            "level": self.level_index + 1,
-            "level_index": self.level_index,
-            "level_count": len(self.config.levels),
-            "score": level.player.score,
-            "lives": level.player.lives,
-            "time_left": max(0, int(level.time_left + 0.999)),
-            "elapsed_seconds": int(self.total_elapsed_seconds + 0.5),
+            **self._snapshot_base(),
             "width": level.maze.width,
             "height": level.maze.height,
             "seed": level.level_config.seed,
@@ -189,32 +175,8 @@ class PacmanRun:
 
     def frame_snapshot(self) -> dict:
         level = self.level
-        status_text = {
-            "playing": "Playing",
-            "paused": "Paused",
-            "won": "Run complete",
-            "lost": "Game over",
-        }.get(self.status, "Playing")
         return {
-            "run_id": self.run_id,
-            "player_name": self.player_name,
-            "status": self.status,
-            "status_text": status_text,
-            "completed": self.status == "won",
-            "score_eligible": (
-                not self.cheat_used
-                and not self.score_saved
-                and self.status in {"won", "lost"}
-            ),
-            "cheat_mode": self.cheat_mode,
-            "cheat_used": self.cheat_used,
-            "level": self.level_index + 1,
-            "level_index": self.level_index,
-            "level_count": len(self.config.levels),
-            "score": level.player.score,
-            "lives": level.player.lives,
-            "time_left": max(0, int(level.time_left + 0.999)),
-            "elapsed_seconds": int(self.total_elapsed_seconds + 0.5),
+            **self._snapshot_base(),
             "player": {
                 "row": level.player.row,
                 "col": level.player.col,
@@ -263,6 +225,41 @@ class PacmanRun:
             level.player.lives = initial_lives
             level.player.is_alive = initial_lives > 0
         return level
+
+    def _snapshot_base(self) -> dict:
+        level = self.level
+        status_text = {
+            "playing": "Playing",
+            "paused": "Paused",
+            "won": "Run complete",
+            "lost": "Game over",
+        }.get(self.status, "Playing")
+        return {
+            "run_id": self.run_id,
+            "player_name": self.player_name,
+            "status": self.status,
+            "status_text": status_text,
+            "completed": self.status == "won",
+            "score_eligible": self._score_eligible(),
+            "score_saved": self.score_saved,
+            "score_save_error": self.score_save_error,
+            "cheat_mode": self.cheat_mode,
+            "cheat_used": self.cheat_used,
+            "level": self.level_index + 1,
+            "level_index": self.level_index,
+            "level_count": len(self.config.levels),
+            "score": level.player.score,
+            "lives": level.player.lives,
+            "time_left": max(0, int(level.time_left + 0.999)),
+            "elapsed_seconds": int(self.total_elapsed_seconds + 0.5),
+        }
+
+    def _score_eligible(self) -> bool:
+        return (
+            not self.cheat_used
+            and not self.score_saved
+            and self.status in {"won", "lost"}
+        )
 
 
 class PacmanRunStore:

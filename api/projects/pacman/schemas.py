@@ -127,6 +127,8 @@ class PacmanRunSnapshot(BaseModel):
     status_text: str
     completed: bool
     score_eligible: bool
+    score_saved: bool
+    score_save_error: str | None = None
     cheat_mode: bool
     cheat_used: bool
     level: int
@@ -154,6 +156,8 @@ class PacmanRunFrame(BaseModel):
     status_text: str
     completed: bool
     score_eligible: bool
+    score_saved: bool
+    score_save_error: str | None = None
     cheat_mode: bool
     cheat_used: bool
     level: int

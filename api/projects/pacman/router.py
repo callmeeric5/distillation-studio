@@ -17,6 +17,7 @@ from api.projects.pacman.schemas import (
     PacmanScoresResponse,
 )
 from api.projects.pacman.service import (
+    auto_save_run_score,
     create_run,
     create_run_score,
     create_score,
@@ -70,7 +71,7 @@ async def run_input(run_id: str, payload: PacmanRunInput) -> dict:
 
 @router.post("/runs/{run_id}/tick", response_model=PacmanRunSnapshot)
 async def run_tick(run_id: str, payload: PacmanRunTick) -> dict:
-    return tick_run(run_id, payload)
+    return await tick_run(run_id, payload)
 
 
 @router.post("/runs/{run_id}/restart", response_model=PacmanRunSnapshot)
@@ -115,6 +116,7 @@ async def run_stream(websocket: WebSocket, run_id: str) -> None:
 
             previous_level_index = run.level_index
             run.tick(delta)
+            await auto_save_run_score(run)
             if run.level_index != last_level_index or run.level_index != previous_level_index:
                 last_level_index = run.level_index
                 await websocket.send_json({"kind": "snapshot", "data": run.snapshot()})

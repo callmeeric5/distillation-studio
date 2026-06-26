@@ -35,6 +35,8 @@ const emptyMetrics = {
   playerName: '',
   score: 0,
   scoreEligible: false,
+  scoreSaveError: null as string | null,
+  scoreSaved: false,
   status: 'idle' as ViewStatus,
   statusText: 'Enter your name to start.',
   timeLeft: 90,
@@ -53,6 +55,8 @@ function metricsFromSnapshot(snapshot: PacmanRunSnapshot | null, viewStatus: Vie
     playerName: snapshot.player_name,
     score: snapshot.score,
     scoreEligible: snapshot.score_eligible,
+    scoreSaveError: snapshot.score_save_error,
+    scoreSaved: snapshot.score_saved,
     status: snapshot.status as ViewStatus,
     statusText: snapshot.status_text,
     timeLeft: snapshot.time_left,
@@ -235,6 +239,7 @@ export function PacManStudio({
   const previousFrameRef = useRef<PacmanRunSnapshot | null>(null);
   const currentFrameRef = useRef<PacmanRunSnapshot | null>(null);
   const currentFrameAtRef = useRef(0);
+  const refreshedScoreRunRef = useRef<string | null>(null);
   const [snapshot, setSnapshot] = useState<PacmanRunSnapshot | null>(null);
   const [viewStatus, setViewStatus] = useState<ViewStatus>('idle');
   const [scores, setScores] = useState<PacmanScore[]>([]);
@@ -394,7 +399,7 @@ export function PacManStudio({
     else setMessage(nextCheatMode ? 'Cheat mode will be enabled when the run starts.' : 'Cheat mode disabled.');
   }, [cheatMode, updateInput]);
 
-  const submitFinalScore = useCallback(async () => {
+  const retryScoreSave = useCallback(async () => {
     const active = snapshotRef.current;
     if (!active || !runEnded) return;
     if (!active.score_eligible) {
@@ -403,12 +408,28 @@ export function PacManStudio({
     }
     try {
       await submitPacmanRunScore(active.run_id);
+      setRunSnapshot({
+        ...active,
+        score_eligible: false,
+        score_save_error: null,
+        score_saved: true,
+      });
       setMessage('Score saved.');
       await refreshScores();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not submit score.');
     }
-  }, [refreshScores, runEnded]);
+  }, [refreshScores, runEnded, setRunSnapshot]);
+
+  useEffect(() => {
+    const active = snapshot;
+    if (!active || !runEnded) return;
+
+    if (active.score_saved && refreshedScoreRunRef.current !== active.run_id) {
+      refreshedScoreRunRef.current = active.run_id;
+      void refreshScores();
+    }
+  }, [refreshScores, runEnded, snapshot]);
 
   useEffect(() => {
     let isActive = true;
@@ -564,15 +585,27 @@ export function PacManStudio({
                     Cheat runs are not saved to the leaderboard.
                   </p>
                 ) : null}
+                {!metrics.cheatUsed && metrics.scoreSaved ? (
+                  <p className="mt-2 text-sm font-semibold text-[#5f7f51]">
+                    Score saved to the leaderboard.
+                  </p>
+                ) : null}
+                {!metrics.cheatUsed && metrics.scoreSaveError ? (
+                  <p className="mt-2 text-sm font-semibold text-[#8a4429]">
+                    Score save failed: {metrics.scoreSaveError}
+                  </p>
+                ) : null}
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <button
-                    className="min-h-11 rounded-lg bg-[#30302e] px-5 text-sm font-semibold text-[#faf9f5] transition hover:bg-[#171715] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!metrics.scoreEligible}
-                    onClick={() => void submitFinalScore()}
-                    type="button"
-                  >
-                    Save score
-                  </button>
+                  {metrics.scoreSaveError ? (
+                    <button
+                      className="min-h-11 rounded-lg bg-[#30302e] px-5 text-sm font-semibold text-[#faf9f5] transition hover:bg-[#171715] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!metrics.scoreEligible}
+                      onClick={() => void retryScoreSave()}
+                      type="button"
+                    >
+                      Retry save
+                    </button>
+                  ) : null}
                   <button
                     className="min-h-11 rounded-lg bg-[#c96442] px-5 text-sm font-semibold text-[#faf9f5] transition hover:bg-[#b65334]"
                     onClick={() => void restart()}

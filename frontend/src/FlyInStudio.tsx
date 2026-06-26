@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   listFlyInMaps,
   loadFlyInSimulation,
   type FlyInAssignment,
+  type FlyInConnection,
   type FlyInDifficulty,
   type FlyInMapSummary,
+  type FlyInMove,
   type FlyInSimulation,
   type FlyInTurn,
   type FlyInZone,
@@ -15,11 +17,8 @@ import { CollapsibleDescription } from './components/CollapsibleDescription';
 const difficulties: FlyInDifficulty[] = ['easy', 'medium', 'hard', 'challenger'];
 const displayWidth = 1200;
 const displayHeight = 760;
-const plotLeft = 54;
-const plotTop = 214;
-const plotMaxWidth = 1092;
-const plotMaxHeight = 460;
-const legendX = 970;
+const plotPaddingX = 72;
+const plotPaddingY = 72;
 
 const zonePalette = {
   blocked: { fill: '#3d3d3a', stroke: '#171715' },
@@ -37,8 +36,21 @@ type DronePosition = {
   zoneName: string;
   label: string;
   count?: number;
-  state: 'moving' | 'waiting' | 'delivered' | 'idle';
+  state: 'moving' | 'waiting' | 'delivered' | 'idle' | 'in_transit';
   reason?: string;
+};
+
+type ReplayFrame = {
+  phase: 'initial' | 'arrival' | 'movement';
+  turn?: FlyInTurn;
+  turnNumber: number;
+};
+
+type DroneRuntime = {
+  activeMove?: FlyInMove;
+  reason?: string;
+  state: DronePosition['state'];
+  zoneName: string;
 };
 
 function fallbackMaps(): Record<FlyInDifficulty, FlyInMapSummary[]> {
@@ -63,7 +75,6 @@ type DisplayLayout = {
   };
   flagScale: number;
   height: number;
-  legendX: number;
   xValues: number[];
   yValues: number[];
   width: number;
@@ -76,12 +87,14 @@ function getZonePoint(
 ) {
   const xIndex = Math.max(layout.xValues.indexOf(zone.position.x), 0);
   const yIndex = Math.max(layout.yValues.indexOf(zone.position.y), 0);
-  const columnGap = layout.xValues.length <= 1 ? 0 : Math.min(112, plotMaxWidth / (layout.xValues.length - 1));
-  const rowGap = layout.yValues.length <= 1 ? 0 : Math.min(132, plotMaxHeight / (layout.yValues.length - 1));
+  const plotMaxWidth = displayWidth - plotPaddingX * 2;
+  const plotMaxHeight = displayHeight - plotPaddingY * 2;
+  const columnGap = layout.xValues.length <= 1 ? 0 : plotMaxWidth / (layout.xValues.length - 1);
+  const rowGap = layout.yValues.length <= 1 ? 0 : plotMaxHeight / (layout.yValues.length - 1);
   const graphWidth = columnGap * Math.max(layout.xValues.length - 1, 0);
   const graphHeight = rowGap * Math.max(layout.yValues.length - 1, 0);
-  const x = plotLeft + (plotMaxWidth - graphWidth) / 2 + xIndex * columnGap;
-  const y = plotTop + (plotMaxHeight - graphHeight) / 2 + yIndex * rowGap;
+  const x = plotPaddingX + (plotMaxWidth - graphWidth) / 2 + xIndex * columnGap;
+  const y = plotPaddingY + (plotMaxHeight - graphHeight) / 2 + yIndex * rowGap;
   return { x, y };
 }
 
@@ -97,64 +110,138 @@ function Metric({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-function latestCompletedMoveFor(turns: FlyInTurn[], droneId: number, currentTurnNumber: number) {
-  for (let index = Math.min(currentTurnNumber - 1, turns.length - 1); index >= 0; index -= 1) {
-    const move = turns[index]?.moves.find(
-      (item) => item.drone_id === droneId && item.arrives_turn <= currentTurnNumber,
-    );
-    if (move) return move;
+function midpoint(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) {
+  return {
+    x: (from.x + to.x) / 2,
+    y: (from.y + to.y) / 2,
+  };
+}
+
+function connectionKey(source: string, target: string) {
+  return [source, target].sort().join('\u0000');
+}
+
+function buildConnectionSet(connections: FlyInConnection[]) {
+  return new Set(connections.map((connection) => connectionKey(connection.source, connection.target)));
+}
+
+function hasConnection(edges: Set<string>, source: string, target: string) {
+  return edges.has(connectionKey(source, target));
+}
+
+function buildReplayFrames(simulation: FlyInSimulation | null): ReplayFrame[] {
+  if (!simulation) return [{ phase: 'initial', turnNumber: 0 }];
+  const frames: ReplayFrame[] = [{ phase: 'initial', turnNumber: 0 }];
+  for (const turn of simulation.turns) {
+    frames.push({ phase: 'arrival', turn, turnNumber: turn.turn });
+    frames.push({ phase: 'movement', turn, turnNumber: turn.turn });
   }
-  return null;
+  return frames;
 }
 
-function currentMoveFor(turn: FlyInTurn | undefined, droneId: number) {
-  return turn?.moves.find((move) => move.drone_id === droneId) ?? null;
-}
-
-function currentWaitFor(turn: FlyInTurn | undefined, droneId: number) {
-  return turn?.waiting.find((waiting) => waiting.drone_id === droneId) ?? null;
+function scanTraceIssues(simulation: FlyInSimulation | null, edges: Set<string>) {
+  if (!simulation) return [];
+  return simulation.turns.flatMap((turn) =>
+    turn.moves
+      .filter((move) => !hasConnection(edges, move.from_zone, move.to_zone))
+      .map((move) => `turn ${turn.turn}: D${move.drone_id} ${move.from_zone}->${move.to_zone}`),
+  );
 }
 
 function buildDronePositions({
   assignments,
-  cursor,
+  edges,
+  frame,
   points,
   simulation,
 }: {
   assignments: FlyInAssignment[];
-  cursor: number;
+  edges: Set<string>;
+  frame: ReplayFrame;
   points: Map<string, { x: number; y: number }>;
   simulation: FlyInSimulation;
 }): DronePosition[] {
-  const currentTurn = simulation.turns[cursor];
-  const currentTurnNumber = currentTurn?.turn ?? 0;
-  return assignments.map((assignment) => {
-    const currentMove = currentMoveFor(currentTurn, assignment.drone_id);
-    const waiting = currentWaitFor(currentTurn, assignment.drone_id);
-    const lastMove = latestCompletedMoveFor(simulation.turns, assignment.drone_id, currentTurnNumber);
-    const baseZone = lastMove?.to_zone ?? assignment.path[0] ?? simulation.stats.start;
-    const basePoint = points.get(baseZone) ?? { x: 0, y: 0 };
+  const runtimes = new Map<number, DroneRuntime>();
+  for (const assignment of assignments) {
+    runtimes.set(assignment.drone_id, {
+      state: 'idle',
+      zoneName: assignment.path[0] ?? simulation.stats.start,
+    });
+  }
 
-    if (currentMove) {
-      const to = points.get(currentMove.to_zone) ?? basePoint;
+  if (frame.phase !== 'initial') {
+    for (const turn of simulation.turns) {
+      if (turn.turn > frame.turnNumber) break;
+
+      for (const runtime of runtimes.values()) {
+        runtime.reason = undefined;
+        if (runtime.activeMove && runtime.activeMove.arrives_turn <= turn.turn) {
+          runtime.zoneName = runtime.activeMove.to_zone;
+          runtime.activeMove = undefined;
+          runtime.state = runtime.zoneName === simulation.stats.end ? 'delivered' : 'idle';
+        }
+      }
+
+      if (turn.turn === frame.turnNumber && frame.phase === 'arrival') break;
+
+      for (const move of turn.moves) {
+        const runtime = runtimes.get(move.drone_id);
+        if (!runtime || !hasConnection(edges, move.from_zone, move.to_zone)) continue;
+        runtime.reason = move.reason;
+        if (move.duration > 1) {
+          runtime.activeMove = move;
+          runtime.state = 'in_transit';
+        } else {
+          runtime.zoneName = move.to_zone;
+          runtime.activeMove = undefined;
+          runtime.state = move.to_zone === simulation.stats.end ? 'delivered' : 'moving';
+        }
+      }
+
+      if (turn.turn === frame.turnNumber && frame.phase === 'movement') break;
+    }
+  }
+
+  const waitingByDrone = new Map(frame.turn?.waiting.map((waiting) => [waiting.drone_id, waiting]));
+  return assignments.map((assignment) => {
+    const runtime = runtimes.get(assignment.drone_id);
+    const waiting = waitingByDrone.get(assignment.drone_id);
+    const zoneName = runtime?.zoneName ?? assignment.path[0] ?? simulation.stats.start;
+    const basePoint = points.get(zoneName) ?? { x: 0, y: 0 };
+    const activeMove = runtime?.activeMove;
+
+    if (activeMove) {
+      const from = points.get(activeMove.from_zone) ?? basePoint;
+      const to = points.get(activeMove.to_zone) ?? basePoint;
+      const point = midpoint(from, to);
       return {
         droneId: assignment.drone_id,
         label: `D${assignment.drone_id}`,
-        state: 'moving',
-        x: to.x,
-        y: to.y,
-        zoneName: currentMove.to_zone,
+        reason: waiting?.reason ?? runtime?.reason,
+        state: 'in_transit',
+        x: point.x,
+        y: point.y,
+        zoneName: `in_transit:${assignment.drone_id}`,
       };
     }
 
+    const state =
+      waiting?.reason === 'delivered' || zoneName === simulation.stats.end
+        ? 'delivered'
+        : waiting
+          ? 'waiting'
+          : runtime?.state ?? 'idle';
     return {
       droneId: assignment.drone_id,
       label: `D${assignment.drone_id}`,
       reason: waiting?.reason,
-      state: waiting?.reason === 'delivered' || baseZone === simulation.stats.end ? 'delivered' : waiting ? 'waiting' : 'idle',
+      state,
       x: basePoint.x,
       y: basePoint.y,
-      zoneName: baseZone,
+      zoneName,
     };
   });
 }
@@ -218,9 +305,11 @@ export function FlyInStudio({
   const autoRunMap = useRef('');
 
   const selectedMap = useMemo(() => findMap(maps, selectedMapValue), [maps, selectedMapValue]);
-  const currentTurn = cursor > 0 ? simulation?.turns[cursor - 1] : undefined;
+  const replayFrames = useMemo(() => buildReplayFrames(simulation), [simulation]);
+  const currentFrame = replayFrames[Math.min(cursor, replayFrames.length - 1)] ?? replayFrames[0];
+  const currentTurn = currentFrame?.turn;
   const currentActivity = currentTurn
-    ? `${currentTurn.moves.length} moves, ${currentTurn.waiting.length} waiting`
+    ? `${currentFrame.phase} · ${currentTurn.moves.length} moves, ${currentTurn.waiting.length} waiting`
     : simulation
       ? 'Initial state'
       : 'Idle';
@@ -236,15 +325,23 @@ export function FlyInStudio({
         normal: denseX > 18 ? 1.5 : 2,
         wide: denseX > 18 ? 3 : 4,
       },
-      flagScale: denseX > 18 ? 0.78 : denseX > 12 ? 0.86 : 1,
+      flagScale: denseX > 18 ? 0.82 : denseX > 12 ? 0.92 : 1.05,
       height: displayHeight,
-      legendX,
       xValues,
       yValues,
       width: displayWidth,
-      zoneRadius,
+      zoneRadius: denseX > 18 ? 22 : zoneRadius,
     };
   }, [simulation]);
+
+  const connectionEdges = useMemo(
+    () => buildConnectionSet(simulation?.connections ?? []),
+    [simulation],
+  );
+  const traceIssues = useMemo(
+    () => scanTraceIssues(simulation, connectionEdges),
+    [connectionEdges, simulation],
+  );
 
   const points = useMemo(() => {
     const next = new Map<string, { x: number; y: number }>();
@@ -254,11 +351,21 @@ export function FlyInStudio({
 
   const dronePositions = useMemo(() => {
     if (!simulation) return [];
-    return buildDronePositions({ assignments: simulation.assignments, cursor: cursor - 1, points, simulation });
-  }, [cursor, points, simulation]);
+    return buildDronePositions({
+      assignments: simulation.assignments,
+      edges: connectionEdges,
+      frame: currentFrame,
+      points,
+      simulation,
+    });
+  }, [connectionEdges, currentFrame, points, simulation]);
   const renderedDronePositions = useMemo(
     () => visibleDronePositions(dronePositions, simulation),
     [dronePositions, simulation],
+  );
+  const droneTransitionStyle = useMemo(
+    () => ({ '--fly-in-transition-ms': `${Math.max(80, Math.floor(speed * 0.42))}ms` }) as CSSProperties,
+    [speed],
   );
 
   async function loadMaps() {
@@ -298,7 +405,7 @@ export function FlyInStudio({
   }
 
   function play() {
-    if (!simulation || isPlaying || cursor >= simulation.turns.length) return;
+    if (!simulation || isPlaying || cursor >= replayFrames.length - 1) return;
     setIsPlaying(true);
   }
 
@@ -318,16 +425,22 @@ export function FlyInStudio({
 
   useEffect(() => {
     if (!isPlaying || !simulation) return undefined;
-    if (cursor >= simulation.turns.length) return undefined;
+    if (cursor >= replayFrames.length - 1) return undefined;
     const timer = window.setTimeout(() => {
       setCursor((current) => {
         const next = current + 1;
-        if (next >= simulation.turns.length) setIsPlaying(false);
+        if (next >= replayFrames.length - 1) setIsPlaying(false);
         return next;
       });
-    }, speed);
+    }, Math.max(120, Math.floor(speed / 2)));
     return () => window.clearTimeout(timer);
-  }, [cursor, isPlaying, simulation, speed]);
+  }, [cursor, isPlaying, replayFrames.length, simulation, speed]);
+
+  useEffect(() => {
+    if (traceIssues.length > 0) {
+      console.warn('Fly_In trace contains moves without a matching connection:', traceIssues);
+    }
+  }, [traceIssues]);
 
   return (
     <article className="overflow-hidden rounded-2xl border border-[#e8e3d6] bg-[#fffdf8]">
@@ -352,15 +465,37 @@ export function FlyInStudio({
             </div>
             <div className="flex flex-wrap gap-2">
               <Metric label="turns" value={simulation?.stats.turns ?? 0} />
-              <Metric label="turn" value={currentTurn?.turn ?? 0} />
+              <Metric label="turn" value={currentFrame?.turnNumber ?? 0} />
               <Metric label="drones" value={simulation?.stats.drones ?? 0} />
             </div>
           </header>
 
-          <div className="flex flex-1 bg-[#f4f1e8] p-4 lg:p-5">
-            <section className="min-h-[680px] w-full overflow-hidden rounded-2xl border border-[#e8e3d6] bg-[#fffdf8]">
+          <div className="flex min-h-0 flex-1 bg-[#f4f1e8] p-4 lg:p-5">
+            <section className="relative flex min-h-[720px] w-full flex-1 overflow-hidden rounded-2xl border border-[#e8e3d6] bg-[#fffdf8]">
+              <div className="pointer-events-none absolute right-5 top-5 z-10 rounded-lg border border-[#ded8ca] bg-[#fffdf8]/95 px-4 py-4 shadow-sm">
+                <p className="mb-3 text-sm font-extrabold text-[#30302e]">Zone type</p>
+                <div className="grid gap-2 text-xs font-bold text-[#5e5d59]">
+                  {[
+                    ['Normal', zonePalette.normal],
+                    ['Priority', zonePalette.priority],
+                    ['Restricted', zonePalette.restricted],
+                    ['Blocked', zonePalette.blocked],
+                  ].map(([label, palette]) => (
+                    <span className="flex items-center gap-2" key={label as string}>
+                      <span
+                        className="h-3.5 w-6 border"
+                        style={{
+                          backgroundColor: (palette as { fill: string }).fill,
+                          borderColor: (palette as { stroke: string }).stroke,
+                        }}
+                      />
+                      {label as string}
+                    </span>
+                  ))}
+                </div>
+              </div>
               <svg
-                className="h-full min-h-[680px] w-full"
+                className="h-full min-h-[720px] w-full flex-1"
                 role="img"
                 aria-label="Fly_In route simulation"
                 viewBox={`0 0 ${displayLayout.width} ${displayLayout.height}`}
@@ -383,7 +518,7 @@ export function FlyInStudio({
                       />
                       <text
                         fill="#8b8174"
-                        fontSize="12"
+                        fontSize={displayLayout.zoneRadius > 22 ? 12 : 10}
                         fontWeight="700"
                         textAnchor="middle"
                         x={(source.x + target.x) / 2}
@@ -395,26 +530,6 @@ export function FlyInStudio({
                   );
                 })}
 
-                <g transform={`translate(${displayLayout.legendX} 28)`}>
-                  <rect fill="#fffdf8" height="168" opacity="0.98" rx="6" stroke="#ded8ca" width="210" />
-                  <text fill="#30302e" fontSize="15" fontWeight="800" x="18" y="34">
-                    Zone type
-                  </text>
-                  {[
-                    ['Normal', zonePalette.normal],
-                    ['Priority', zonePalette.priority],
-                    ['Restricted', zonePalette.restricted],
-                    ['Blocked', zonePalette.blocked],
-                  ].map(([label, palette], index) => (
-                    <g key={label as string} transform={`translate(18 ${66 + index * 26})`}>
-                      <rect fill={(palette as { fill: string }).fill} height="14" stroke={(palette as { stroke: string }).stroke} width="22" />
-                      <text fill="#5e5d59" fontSize="13" fontWeight="700" x="34" y="12">
-                        {label as string}
-                      </text>
-                    </g>
-                  ))}
-                </g>
-
                 {simulation?.zones.map((zone) => {
                   const point = points.get(zone.name);
                   if (!point) return null;
@@ -422,7 +537,7 @@ export function FlyInStudio({
                   return (
                     <g key={zone.name}>
                       <circle cx={point.x} cy={point.y} fill={palette.fill} r={displayLayout.zoneRadius} stroke={palette.stroke} strokeWidth="2" />
-                      <text fill="#171715" fontSize={displayLayout.zoneRadius > 18 ? 12 : 9} fontWeight="800" textAnchor="middle" x={point.x} y={point.y + 3}>
+                      <text fill="#171715" fontSize={displayLayout.zoneRadius > 22 ? 13 : 11} fontWeight="800" textAnchor="middle" x={point.x} y={point.y + 4}>
                         {zone.role === 'start' ? 'S' : zone.role === 'end' ? 'E' : zone.max_drones}
                       </text>
                     </g>
@@ -431,14 +546,23 @@ export function FlyInStudio({
 
                 {renderedDronePositions.map((drone) => {
                   const offset = centeredDroneOffset(renderedDronePositions, drone, displayLayout.zoneRadius);
-                  const fill = drone.state === 'moving' ? '#c96442' : drone.state === 'delivered' ? '#49603b' : '#36546d';
+                  const fill =
+                    drone.state === 'moving'
+                      ? '#c96442'
+                      : drone.state === 'in_transit'
+                        ? '#6f6a5f'
+                        : drone.state === 'delivered'
+                          ? '#49603b'
+                          : '#36546d';
                   return (
                     <g
-                      className={drone.state === 'waiting' ? 'fly-in-waiting-drone' : ''}
+                      className={`fly-in-drone-flag ${
+                        drone.state === 'waiting' || drone.state === 'in_transit' ? 'fly-in-waiting-drone' : ''
+                      } ${isPlaying ? '' : 'fly-in-drone-snap'}`}
                       key={drone.droneId}
                       style={{
+                        ...droneTransitionStyle,
                         transform: `translate(${drone.x + offset.x}px, ${drone.y + offset.y}px)`,
-                        transition: `transform ${Math.max(speed * 0.78, 120)}ms ease`,
                       }}
                     >
                       <g transform={`scale(${displayLayout.flagScale})`}>
@@ -509,11 +633,11 @@ export function FlyInStudio({
           </label>
 
           <label className="grid gap-2">
-            <span className="text-sm font-bold text-[#777267]">Turn</span>
+            <span className="text-sm font-bold text-[#777267]">Replay step</span>
             <input
               className="accent-[#c96442]"
               disabled={!simulation}
-              max={simulation?.turns.length ?? 0}
+              max={Math.max(replayFrames.length - 1, 0)}
               min={0}
               onChange={(event) => {
                 setIsPlaying(false);
@@ -526,16 +650,8 @@ export function FlyInStudio({
 
           <div className="grid grid-cols-2 gap-3">
             <button
-              className="col-span-2 min-h-11 rounded-lg bg-[#c96442] px-4 text-sm font-bold text-[#faf9f5] transition hover:bg-[#b65334] disabled:opacity-60"
-              disabled={isBusy || !selectedMap}
-              onClick={() => void runSelectedMap()}
-              type="button"
-            >
-              Run
-            </button>
-            <button
               className="min-h-11 rounded-lg border border-[#e8e3d6] bg-[#fffdf8] px-4 text-sm font-semibold text-[#30302e] transition hover:bg-[#f4f1e8] disabled:opacity-60"
-              disabled={!simulation || cursor >= simulation.turns.length || isPlaying}
+              disabled={!simulation || cursor >= replayFrames.length - 1 || isPlaying}
               onClick={play}
               type="button"
             >
@@ -563,6 +679,11 @@ export function FlyInStudio({
           </div>
 
           <p className="min-h-6 text-sm font-medium text-[#5e5d59]">{status}</p>
+          {traceIssues.length > 0 ? (
+            <p className="rounded-xl border border-[#e5c9bd] bg-[#fff6ed] p-3 text-sm font-semibold text-[#8a4429]">
+              {traceIssues.length} trace move{traceIssues.length === 1 ? '' : 's'} skipped because no connection exists.
+            </p>
+          ) : null}
           <p className="rounded-xl border border-[#e8e3d6] bg-[#fffdf8] p-3 text-sm font-semibold text-[#30302e]">
             {currentActivity}
           </p>
@@ -579,10 +700,10 @@ export function FlyInStudio({
             </button>
             {isTurnsExpanded ? (
               <ol className="grid max-h-72 gap-1 overflow-auto border-t border-[#e8e3d6] p-3 pl-8 font-mono text-sm">
-                {(simulation?.turns ?? []).map((turn, index) => (
+                {(simulation?.turns ?? []).map((turn) => (
                   <li
                     className={`rounded-md px-2 py-1 ${
-                      index === cursor - 1 ? 'bg-[#f3dfd2] font-bold text-[#8a4429]' : 'text-[#777267]'
+                      turn.turn === currentFrame?.turnNumber ? 'bg-[#f3dfd2] font-bold text-[#8a4429]' : 'text-[#777267]'
                     }`}
                     key={turn.turn}
                   >

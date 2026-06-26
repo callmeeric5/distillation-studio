@@ -1,6 +1,11 @@
 from backend.pac_man.src.logger import logger
 from backend.pac_man.src.maze import Maze
-from backend.pac_man.src.utils import DIRECTION, Position, next_position
+from backend.pac_man.src.utils import (
+    DIRECTION,
+    OPPOSITE_DIRECTIONS,
+    Position,
+    next_position,
+)
 
 
 class Player:
@@ -69,11 +74,10 @@ class Player:
             return
         distance = max(0, delta_time) * max(1, self.speed)
         while distance > 0:
+            self._apply_immediate_reverse()
             if self.target is None:
-                # If detect user change the direction
                 if self.maze.can_move(self.pos, self.request_direction):
                     self.direction = self.request_direction
-                # Move on the same direction
                 if self.maze.can_move(self.pos, self.direction):
                     self.target = next_position(self.pos, self.direction)
                 else:
@@ -118,3 +122,15 @@ class Player:
         self.row += distance_x * ratio
         self.col += distance_y * ratio
         return 0.0
+
+    def _apply_immediate_reverse(self) -> None:
+        if (
+            self.target is None
+            or self.request_direction != OPPOSITE_DIRECTIONS[self.direction]
+        ):
+            return
+
+        previous_pos = self.pos
+        self.pos = self.target
+        self.target = previous_pos
+        self.direction = self.request_direction
