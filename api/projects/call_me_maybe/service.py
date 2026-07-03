@@ -20,6 +20,10 @@ class RemoteModelClient:
     def __init__(self, base_url: str = MODEL_URL) -> None:
         self.base_url = base_url
         self.timeout = httpx.Timeout(MODEL_TIMEOUT_SECONDS)
+        self.client = httpx.Client(timeout=self.timeout)
+
+    def close(self) -> None:
+        self.client.close()
 
     def encode(self, text: str) -> list[int]:
         payload = self._post_json("/encode", {"text": text})
@@ -28,6 +32,20 @@ class RemoteModelClient:
             raise ModelServiceError("Model service returned invalid token ids.")
         return [int(token_id) for token_id in token_ids]
 
+    def encode_many(self, texts: list[str]) -> list[list[int]]:
+        payload = self._post_json("/encode-batch", {"texts": texts})
+        token_ids_list = payload.get("token_ids_list")
+        if not isinstance(token_ids_list, list):
+            raise ModelServiceError("Model service returned invalid batch token ids.")
+        if len(token_ids_list) != len(texts):
+            raise ModelServiceError("Model service returned the wrong batch size.")
+        encoded: list[list[int]] = []
+        for token_ids in token_ids_list:
+            if not isinstance(token_ids, list):
+                raise ModelServiceError("Model service returned invalid batch token ids.")
+            encoded.append([int(token_id) for token_id in token_ids])
+        return encoded
+
     def get_logits_from_input_ids(self, input_ids: list[int]) -> list[float]:
         payload = self._post_json("/logits", {"input_ids": input_ids})
         logits = payload.get("logits")
@@ -35,12 +53,28 @@ class RemoteModelClient:
             raise ModelServiceError("Model service returned invalid logits.")
         return [float(logit) for logit in logits]
 
+    def get_candidate_logits_from_input_ids(
+        self,
+        input_ids: list[int],
+        candidate_token_ids: list[int],
+    ) -> dict[int, float]:
+        payload = self._post_json(
+            "/candidate-logits",
+            {
+                "input_ids": input_ids,
+                "candidate_token_ids": candidate_token_ids,
+            },
+        )
+        logits = payload.get("logits")
+        if not isinstance(logits, dict):
+            raise ModelServiceError("Model service returned invalid candidate logits.")
+        return {int(token_id): float(value) for token_id, value in logits.items()}
+
     def _post_json(self, path: str, body: dict) -> dict:
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                response = client.post(f"{self.base_url}{path}", json=body)
-                response.raise_for_status()
-                payload = response.json()
+            response = self.client.post(f"{self.base_url}{path}", json=body)
+            response.raise_for_status()
+            payload = response.json()
         except (httpx.HTTPError, ValueError) as error:
             raise ModelServiceError(str(error)) from error
         if not isinstance(payload, dict):
@@ -72,11 +106,17 @@ def run_call_me_maybe(request: FunctionCallRequest) -> dict:
                 for function in request.functions_definition
             ]
         )
-        output = run_function_call(
-            prompt=request.prompt,
-            functions=functions,
-            model=RemoteModelClient(),
-        )
+        model = RemoteModelClient()
+        try:
+            output = run_function_call(
+                prompt=request.prompt,
+                functions=functions,
+                model=model,
+            )
+        finally:
+            close = getattr(model, "close", None)
+            if callable(close):
+                close()
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except ModelServiceError as error:

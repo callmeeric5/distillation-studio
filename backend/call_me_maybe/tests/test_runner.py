@@ -32,6 +32,9 @@ class FakeModel:
             self.prompt_token_count = len(token_ids)
         return token_ids
 
+    def encode_many(self, texts: list[str]) -> list[list[int]]:
+        return [[ord(char) for char in text] for text in texts]
+
     def get_logits_from_input_ids(self, input_ids: list[int]) -> list[float]:
         assert self.prompt_token_count is not None
         selected_tokens = input_ids[self.prompt_token_count:]
@@ -40,6 +43,14 @@ class FakeModel:
         logits = [0.0] * 256
         logits[next_token] = 100.0
         return logits
+
+    def get_candidate_logits_from_input_ids(
+        self,
+        input_ids: list[int],
+        candidate_token_ids: list[int],
+    ) -> dict[int, float]:
+        logits = self.get_logits_from_input_ids(input_ids)
+        return {token_id: logits[token_id] for token_id in candidate_token_ids}
 
 
 def test_run_function_call_selects_function_and_extracts_parameters() -> None:

@@ -32,9 +32,13 @@ def _constrained_select(
 ) -> str:
     """Greedily decode one function while allowing only valid prefixes."""
     prompt_tokens = model.encode(prompt)
+    encoded_functions = _encode_many(
+        model,
+        [prompt + name for name in functions],
+    )
     fn_tokens_dict = {
-        name: model.encode(prompt + name)[len(prompt_tokens):]
-        for name in functions
+        name: token_ids[len(prompt_tokens):]
+        for name, token_ids in zip(functions, encoded_functions, strict=True)
     }
     selected_tokens: list[int] = []
     while True:
@@ -54,10 +58,12 @@ def _constrained_select(
         if not next_fn_candidate:
             raise ValueError("no valid function name token remains")
 
-        logits = model.get_logits_from_input_ids(
-            prompt_tokens + selected_tokens
+        candidate_logits = _candidate_logits(
+            model,
+            prompt_tokens + selected_tokens,
+            next_fn_candidate,
         )
-        next_token = max(next_fn_candidate, key=lambda i: logits[i])
+        next_token = max(next_fn_candidate, key=lambda i: candidate_logits[i])
         selected_tokens.append(next_token)
 
 
@@ -66,3 +72,27 @@ def _function_by_name(name: str, functions: list[Function]) -> Function:
         if function.name == name:
             return function
     raise ValueError(f"unknown function selected: {name}")
+
+
+def _encode_many(model: SelectionModel, texts: list[str]) -> list[list[int]]:
+    encode_many = getattr(model, "encode_many", None)
+    if callable(encode_many):
+        return encode_many(texts)
+    return [model.encode(text) for text in texts]
+
+
+def _candidate_logits(
+    model: SelectionModel,
+    input_ids: list[int],
+    candidates: set[int],
+) -> dict[int, float]:
+    candidate_logits = getattr(
+        model,
+        "get_candidate_logits_from_input_ids",
+        None,
+    )
+    if callable(candidate_logits):
+        return candidate_logits(input_ids, sorted(candidates))
+
+    logits = model.get_logits_from_input_ids(input_ids)
+    return {candidate: logits[candidate] for candidate in candidates}
