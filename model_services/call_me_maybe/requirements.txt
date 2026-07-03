@@ -1,0 +1,7 @@
+accelerate
+fastapi
+huggingface-hub
+pydantic
+torch
+transformers>=4.51.0
+uvicorn[standard]

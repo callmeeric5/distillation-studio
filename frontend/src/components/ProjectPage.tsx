@@ -1,4 +1,5 @@
 import { AMazeIngStudio } from '../AMazeIngStudio';
+import { CallMeMaybeStudio } from '../CallMeMaybeStudio';
 import { FlyInStudio } from '../FlyInStudio';
 import { PacManStudio } from '../PacManStudio';
 import { PushSwapStudio } from '../PushSwapStudio';
@@ -53,6 +54,16 @@ export function ProjectPage({
   if (project.slug === 'trace-ops-agent') {
     return (
       <TraceOpsAgentStudio
+        description={project.description}
+        fullDescription={project.fullDescription}
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (project.slug === 'call-me-maybe') {
+    return (
+      <CallMeMaybeStudio
         description={project.description}
         fullDescription={project.fullDescription}
         onBack={onBack}

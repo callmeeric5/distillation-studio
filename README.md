@@ -33,10 +33,11 @@ Distillation Studio is a portfolio app with a Vite/React frontend, one shared Fa
 
 ## Deployment
 
-Production uses two application containers plus a private database:
+Production uses three application containers plus a private database:
 
 - `api`: FastAPI on the internal Compose network, port `8000`.
 - `frontend`: Nginx serving the Vite build and proxying `/api/` to `api:8000`.
+- `call-me-maybe-model`: private Qwen/Qwen3-0.6B model service for Call_Me_Maybe, port `8001` on the internal Compose network.
 - `postgres`: private PostgreSQL service with a `traceops` database for website project data.
 
 The Oracle server deploy directory is `/home/ubuntu/distillation-studio`. Cloudflare Origin Certificate files should be placed at:
@@ -44,6 +45,6 @@ The Oracle server deploy directory is `/home/ubuntu/distillation-studio`. Cloudf
 - `/home/ubuntu/distillation-studio/certs/origin.pem`
 - `/home/ubuntu/distillation-studio/certs/origin.key`
 
-GitHub Actions builds ARM64 images, pushes them to GHCR, uploads `docker-compose.yml`, writes `.env` with `IMAGE_TAG`, then runs `docker compose pull` and `docker compose up -d --remove-orphans`.
+GitHub Actions builds ARM64 images, pushes them to GHCR, uploads `docker-compose.yml`, writes `.env` with `IMAGE_TAG`, then runs `docker compose pull` and `docker compose up -d --remove-orphans`. The Call_Me_Maybe model container stores Hugging Face weights in the `call-me-maybe-hf-cache` Docker volume, so the first deploy can take longer while `Qwen/Qwen3-0.6B` downloads.
 
 `TRACEOPS_POSTGRES_PASSWORD` can be added to the deployment `.env` later if you want to replace the Compose default password. Provider API keys for Trace-Ops-Agent are never stored; they are used only for the current request.

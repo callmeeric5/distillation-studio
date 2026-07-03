@@ -12,6 +12,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   API_IMAGE: ghcr.io/callmeeric5/distillation-studio-api
+  CALL_ME_MAYBE_MODEL_IMAGE: ghcr.io/callmeeric5/distillation-studio-call-me-maybe-model
   FRONTEND_IMAGE: ghcr.io/callmeeric5/distillation-studio-frontend
   DEPLOY_DIR: /home/ubuntu/distillation-studio
   IMAGE_PLATFORM: linux/arm64
@@ -50,6 +51,19 @@ jobs:
             ${{ env.API_IMAGE }}:latest
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push Call_Me_Maybe model image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./model_services/call_me_maybe
+          file: ./model_services/call_me_maybe/Dockerfile
+          platforms: ${{ env.IMAGE_PLATFORM }}
+          push: true
+          tags: |
+            ${{ env.CALL_ME_MAYBE_MODEL_IMAGE }}:${{ github.sha }}
+            ${{ env.CALL_ME_MAYBE_MODEL_IMAGE }}:latest
+          cache-from: type=gha,scope=call-me-maybe-model
+          cache-to: type=gha,mode=max,scope=call-me-maybe-model
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v6

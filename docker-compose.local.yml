@@ -19,12 +19,39 @@ services:
     image: distillation-studio-api:local
     restart: unless-stopped
     depends_on:
-      - postgres
+      postgres:
+        condition: service_started
+      call-me-maybe-model:
+        condition: service_started
     environment:
+      CALL_ME_MAYBE_MODEL_URL: http://call-me-maybe-model:8001
       DATABASE_URL: postgresql+asyncpg://traceops:traceops@postgres:5432/traceops
       PACMAN_DATABASE_URL: postgresql+asyncpg://traceops:traceops@postgres:5432/pacman
     expose:
       - "8000"
+    networks:
+      - distillation
+
+  call-me-maybe-model:
+    build:
+      context: ./model_services/call_me_maybe
+    image: distillation-studio-call-me-maybe-model:local
+    restart: unless-stopped
+    environment:
+      CALL_ME_MAYBE_MODEL_NAME: Qwen/Qwen3-0.6B
+      CALL_ME_MAYBE_MODEL_DEVICE: cpu
+      HF_HOME: /models/huggingface
+      TRANSFORMERS_CACHE: /models/huggingface
+    expose:
+      - "8001"
+    volumes:
+      - call-me-maybe-hf-cache-local:/models/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 10m
     networks:
       - distillation
 
@@ -48,3 +75,4 @@ networks:
 
 volumes:
   traceops-postgres-local:
+  call-me-maybe-hf-cache-local:

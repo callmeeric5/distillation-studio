@@ -1,4 +1,5 @@
 import mazeCover from '../assets/a-maze-ing-cover.png';
+import callMeMaybeCover from '../assets/call-me-maybe-cover.png';
 import flyInCover from '../assets/fly-in-cover.png';
 import pacManCover from '../assets/pac-man-cover.png';
 import pushSwapCover from '../assets/push-swap-cover.png';
@@ -57,13 +58,15 @@ export const projects42: Project[] = [
     title: 'Call_Me_Maybe',
     category: '42 project',
     language: 'Common Core / python',
-    status: 'in progress',
-    description: 'A planned 42 project page for collecting the project story, implementation notes, and final result.',
+    status: 'ready',
+    description: 'A constrained function-calling demo that turns natural-language prompts into typed function calls.',
     fullDescription:
-      'Call_Me_Maybe is listed as in progress while the project is being prepared for the portfolio. The page will stay non-runnable until there is a stable implementation or demo to connect.',
+      'Call_Me_Maybe uses a small Qwen model to choose one valid function name through prefix-constrained decoding, then extracts parameters in Python from the selected function prototype. Edit the prompt and function definition JSON to inspect how the backend produces a structured function call without asking the model to write JSON directly.',
+    endpoint: '/api/projects/call-me-maybe/run',
+    coverImage: callMeMaybeCover,
     slug: 'call-me-maybe',
     routeSlug: 'call_me_maybe',
-    tags: ['42', 'notes', 'demo'],
+    tags: ['function calling', 'Qwen', 'constrained decoding'],
   },
   {
     title: 'Push_Swap',

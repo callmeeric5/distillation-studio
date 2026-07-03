@@ -70,10 +70,13 @@ jobs:
         run: pip install -r api/requirements.txt pytest
 
       - name: Compile Python modules
-        run: python -m compileall api backend/a_maze_ing backend/trace_ops_agent
+        run: python -m compileall api backend/a_maze_ing backend/call_me_maybe backend/trace_ops_agent model_services/call_me_maybe
 
       - name: A_Maze_Ing tests
         run: pytest backend/a_maze_ing/tests
 
       - name: Trace-Ops-Agent tests
         run: pytest backend/trace_ops_agent/tests
+
+      - name: Call_Me_Maybe tests
+        run: pytest backend/call_me_maybe/tests api/projects/call_me_maybe
