@@ -22,6 +22,10 @@ class FakeModel:
         self.selected_name = selected_name
         self.prompt_token_count: int | None = None
 
+    def select_function_name(self, prompt: str, function_names: list[str]) -> str:
+        assert self.selected_name in function_names
+        return self.selected_name
+
     def encode(self, text: str) -> list[int]:
         token_ids = [ord(char) for char in text]
         if self.prompt_token_count is None:

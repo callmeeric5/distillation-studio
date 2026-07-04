@@ -32,6 +32,16 @@ class RemoteModelClient:
             raise ModelServiceError("Model service returned invalid token ids.")
         return [int(token_id) for token_id in token_ids]
 
+    def select_function_name(self, prompt: str, function_names: list[str]) -> str:
+        payload = self._post_json(
+            "/select-function",
+            {"prompt": prompt, "function_names": function_names},
+        )
+        name = payload.get("name")
+        if not isinstance(name, str):
+            raise ModelServiceError("Model service returned an invalid function name.")
+        return name
+
     def encode_many(self, texts: list[str]) -> list[list[int]]:
         payload = self._post_json("/encode-batch", {"texts": texts})
         token_ids_list = payload.get("token_ids_list")

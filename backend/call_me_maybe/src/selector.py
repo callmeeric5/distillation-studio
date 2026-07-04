@@ -21,7 +21,11 @@ def select_function(
 
     fn_names = [function.name for function in functions]
     llm_prompt = build_prompt(prompt, functions)
-    selected_fn = _constrained_select(llm_prompt, fn_names, model)
+    select_function_name = getattr(model, "select_function_name", None)
+    if callable(select_function_name):
+        selected_fn = select_function_name(llm_prompt, fn_names)
+    else:
+        selected_fn = _constrained_select(llm_prompt, fn_names, model)
     return _function_by_name(selected_fn, functions)
 
 

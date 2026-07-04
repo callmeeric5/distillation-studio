@@ -82,6 +82,7 @@ export function CallMeMaybeStudio({
   const [prompt, setPrompt] = useState(samplePrompt);
   const [additionalFunctionConfig, setAdditionalFunctionConfig] = useState(sampleAdditionalFunctions);
   const [result, setResult] = useState<CallMeMaybeResponse | null>(null);
+  const [durationMs, setDurationMs] = useState<number | null>(null);
   const [status, setStatus] = useState('Edit the prompt or add extra functions, then run selection.');
   const [isBusy, setIsBusy] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -110,15 +111,20 @@ export function CallMeMaybeStudio({
 
     setIsBusy(true);
     setResult(null);
+    setDurationMs(null);
     setStatus('Running constrained function selection...');
+    const startedAt = performance.now();
     try {
       const response = await runCallMeMaybe({
         prompt: trimmedPrompt,
         functions_definition: parsedConfig,
       });
+      const elapsedMs = Math.round(performance.now() - startedAt);
       setResult(response);
-      setStatus('Function call generated.');
+      setDurationMs(elapsedMs);
+      setStatus(`Function call generated in ${formatDuration(elapsedMs)}.`);
     } catch (error) {
+      setDurationMs(Math.round(performance.now() - startedAt));
       setStatus(error instanceof Error ? error.message : 'Could not run Call_Me_Maybe.');
     } finally {
       setIsBusy(false);
@@ -160,6 +166,9 @@ export function CallMeMaybeStudio({
               <h4 className="text-sm font-bold uppercase text-[#8b8174]">Selected function</h4>
               <p className="mt-2 break-words font-mono text-lg font-semibold text-[#30302e]">
                 {result?.name ?? 'Waiting for selection.'}
+              </p>
+              <p className="mt-2 text-sm font-medium text-[#777267]">
+                Duration: {durationMs === null ? 'Waiting for run.' : formatDuration(durationMs)}
               </p>
             </section>
 
@@ -229,4 +238,9 @@ export function CallMeMaybeStudio({
       </div>
     </article>
   );
+}
+
+function formatDuration(durationMs: number) {
+  if (durationMs < 1000) return `${durationMs} ms`;
+  return `${(durationMs / 1000).toFixed(2)} s`;
 }

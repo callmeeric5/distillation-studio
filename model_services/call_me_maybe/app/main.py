@@ -50,6 +50,15 @@ class CandidateLogitsResponse(BaseModel):
     logits: dict[str, float]
 
 
+class SelectFunctionRequest(BaseModel):
+    prompt: str = Field(..., max_length=12000)
+    function_names: list[str] = Field(..., min_length=1, max_length=64)
+
+
+class SelectFunctionResponse(BaseModel):
+    name: str
+
+
 class QwenRuntime:
     def __init__(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -76,6 +85,61 @@ class QwenRuntime:
             self.tokenizer.encode(text, add_special_tokens=False)
             for text in texts
         ]
+
+    def select_function_name(self, prompt: str, function_names: list[str]) -> str:
+        prompt_tokens = self.encode(prompt)
+        if len(prompt_tokens) > MAX_INPUT_TOKENS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Input is too long: {len(prompt_tokens)} tokens.",
+            )
+
+        encoded_functions = self.encode_many(
+            [prompt + name for name in function_names]
+        )
+        fn_tokens_by_name = {
+            name: token_ids[len(prompt_tokens):]
+            for name, token_ids in zip(
+                function_names,
+                encoded_functions,
+                strict=True,
+            )
+        }
+
+        selected_tokens: list[int] = []
+        while True:
+            for name, fn_tokens in fn_tokens_by_name.items():
+                if selected_tokens == fn_tokens:
+                    return name
+
+            next_candidates = set()
+            for fn_tokens in fn_tokens_by_name.values():
+                if selected_tokens == fn_tokens[: len(selected_tokens)] and len(
+                    fn_tokens
+                ) > len(selected_tokens):
+                    next_candidates.add(fn_tokens[len(selected_tokens)])
+
+            if not next_candidates:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No valid function name token remains.",
+                )
+
+            input_ids = prompt_tokens + selected_tokens
+            if len(input_ids) > MAX_INPUT_TOKENS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Input is too long: {len(input_ids)} tokens.",
+                )
+            candidate_logits = self.candidate_logits(
+                input_ids,
+                sorted(next_candidates),
+            )
+            next_token = max(
+                next_candidates,
+                key=lambda token_id: candidate_logits[str(token_id)],
+            )
+            selected_tokens.append(next_token)
 
     def logits(self, input_ids: list[int]) -> list[float]:
         last_logits = self._last_logits(input_ids)
@@ -132,6 +196,16 @@ def encode(request: EncodeRequest) -> EncodeResponse:
             detail=f"Input is too long: {len(token_ids)} tokens.",
         )
     return EncodeResponse(token_ids=token_ids)
+
+
+@app.post("/select-function", response_model=SelectFunctionResponse)
+def select_function(request: SelectFunctionRequest) -> SelectFunctionResponse:
+    return SelectFunctionResponse(
+        name=get_runtime().select_function_name(
+            request.prompt,
+            request.function_names,
+        )
+    )
 
 
 @app.post("/encode-batch", response_model=EncodeBatchResponse)
