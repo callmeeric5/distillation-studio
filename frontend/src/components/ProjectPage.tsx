@@ -1,5 +1,6 @@
 import { AMazeIngStudio } from '../AMazeIngStudio';
 import { CallMeMaybeStudio } from '../CallMeMaybeStudio';
+import { CodexionStudio } from '../CodexionStudio';
 import { FlyInStudio } from '../FlyInStudio';
 import { PacManStudio } from '../PacManStudio';
 import { PushSwapStudio } from '../PushSwapStudio';
@@ -64,6 +65,16 @@ export function ProjectPage({
   if (project.slug === 'call-me-maybe') {
     return (
       <CallMeMaybeStudio
+        description={project.description}
+        fullDescription={project.fullDescription}
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (project.slug === 'codexion') {
+    return (
+      <CodexionStudio
         description={project.description}
         fullDescription={project.fullDescription}
         onBack={onBack}

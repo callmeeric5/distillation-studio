@@ -72,6 +72,9 @@ jobs:
       - name: Compile Python modules
         run: python -m compileall api backend/a_maze_ing backend/call_me_maybe backend/trace_ops_agent model_services/call_me_maybe
 
+      - name: Codexion build
+        run: make -C backend/codexion
+
       - name: A_Maze_Ing tests
         run: pytest backend/a_maze_ing/tests
 
@@ -80,3 +83,6 @@ jobs:
 
       - name: Call_Me_Maybe tests
         run: pytest backend/call_me_maybe/tests api/projects/call_me_maybe
+
+      - name: Codexion API tests
+        run: pytest api/projects/codexion

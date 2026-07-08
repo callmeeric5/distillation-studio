@@ -1,5 +1,6 @@
 import mazeCover from '../assets/a-maze-ing-cover.png';
 import callMeMaybeCover from '../assets/call-me-maybe-cover.png';
+import codexionCover from '../assets/codexion-cover.png';
 import flyInCover from '../assets/fly-in-cover.png';
 import pacManCover from '../assets/pac-man-cover.png';
 import pushSwapCover from '../assets/push-swap-cover.png';
@@ -81,6 +82,20 @@ export const projects42: Project[] = [
     slug: 'push-swap',
     routeSlug: 'push_swap',
     tags: ['sorting', 'stacks', 'optimization'],
+  },
+  {
+    title: 'Codexion',
+    category: '42 project',
+    language: 'Common Core / c',
+    status: 'ready',
+    description: 'A pthread scheduling simulation where coders compete for paired USB dongles under burnout deadlines.',
+    fullDescription:
+      'Codexion runs the original C concurrency simulation through the shared FastAPI backend. Configure coder count, burnout timing, compile/debug/refactor durations, required compile cycles, dongle cooldown, and FIFO or EDF scheduling, then replay the returned trace to inspect coder states and dongle ownership.',
+    endpoint: '/api/projects/codexion/run',
+    coverImage: codexionCover,
+    slug: 'codexion',
+    routeSlug: 'codexion',
+    tags: ['pthreads', 'scheduler', 'simulation'],
   },
 ];
 

@@ -10,6 +10,8 @@ RUN apt-get update \
 
 COPY backend/push_swap/ ./backend/push_swap/
 RUN make -C backend/push_swap
+COPY backend/codexion/ ./backend/codexion/
+RUN make -C backend/codexion
 
 FROM python:3.12-slim AS runtime
 
@@ -38,9 +40,12 @@ COPY backend/pac_man/ ./backend/pac_man/
 COPY backend/trace_ops_agent/ ./backend/trace_ops_agent/
 RUN mkdir -p ./backend/push_swap
 COPY --from=builder /build/backend/push_swap/push_swap ./backend/push_swap/push_swap
+RUN mkdir -p ./backend/codexion
+COPY --from=builder /build/backend/codexion/codexion ./backend/codexion/codexion
 
 RUN find ./backend -type d -name __pycache__ -prune -exec rm -rf {} + \
   && chmod +x ./backend/push_swap/push_swap \
+  && chmod +x ./backend/codexion/codexion \
   && chown -R app:app /app
 
 USER app
