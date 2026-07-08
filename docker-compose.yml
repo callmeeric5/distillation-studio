@@ -30,7 +30,7 @@ services:
       - distillation
 
   call-me-maybe-model:
-    image: ghcr.io/callmeeric5/distillation-studio-call-me-maybe-model:${IMAGE_TAG:?IMAGE_TAG is required}
+    image: ghcr.io/callmeeric5/distillation-studio-call-me-maybe-model:${CALL_ME_MAYBE_MODEL_IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       CALL_ME_MAYBE_MODEL_NAME: Qwen/Qwen3-0.6B

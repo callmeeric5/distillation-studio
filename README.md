@@ -45,6 +45,6 @@ The Oracle server deploy directory is `/home/ubuntu/distillation-studio`. Cloudf
 - `/home/ubuntu/distillation-studio/certs/origin.pem`
 - `/home/ubuntu/distillation-studio/certs/origin.key`
 
-GitHub Actions builds ARM64 images, pushes them to GHCR, uploads `docker-compose.yml`, writes `.env` with `IMAGE_TAG`, then runs `docker compose pull` and `docker compose up -d --remove-orphans`. The Call_Me_Maybe model container stores Hugging Face weights in the `call-me-maybe-hf-cache` Docker volume, so the first deploy can take longer while `Qwen/Qwen3-0.6B` downloads.
+GitHub Actions builds ARM64 API and frontend images on every `main` deploy, pushes them to GHCR, uploads `docker-compose.yml`, writes `.env` with `IMAGE_TAG`, then runs `docker compose pull` and `docker compose up -d --remove-orphans`. The Call_Me_Maybe model image is built only when `model_services/call_me_maybe/**` changes; its deployed tag is tracked separately with `CALL_ME_MAYBE_MODEL_IMAGE_TAG` and otherwise falls back to `latest`. The model container stores Hugging Face weights in the `call-me-maybe-hf-cache` Docker volume, so the first deploy can take longer while `Qwen/Qwen3-0.6B` downloads.
 
 `TRACEOPS_POSTGRES_PASSWORD` can be added to the deployment `.env` later if you want to replace the Compose default password. Provider API keys for Trace-Ops-Agent are never stored; they are used only for the current request.
