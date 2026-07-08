@@ -267,8 +267,8 @@ def update_cooldowns(time: int, dongles: list[dict]) -> None:
 def coder_dongles(coder_id: int, coders_count: int) -> list[int]:
     if coders_count == 1:
         return [1]
-    right = coder_id + 1 if coder_id < coders_count else 1
-    return [coder_id, right]
+    left = coder_id - 1 if coder_id > 1 else coders_count
+    return [left, coder_id]
 
 
 def snapshot(index: int, time: int, event: dict | None, coders: list[dict], dongles: list[dict]) -> dict:

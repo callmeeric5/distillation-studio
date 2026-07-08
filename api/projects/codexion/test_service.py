@@ -64,6 +64,11 @@ def test_successful_run_adds_completion_frame() -> None:
     assert all(coder["state"] == "complete" for coder in response["frames"][-1]["coders"])
 
 
+def test_coder_dongles_use_immediate_left_and_current_dongle() -> None:
+    assert service.coder_dongles(4, 5) == [3, 4]
+    assert service.coder_dongles(1, 5) == [5, 1]
+
+
 def test_failed_codexion_run_returns_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(command, 1, stdout="", stderr="bad config")

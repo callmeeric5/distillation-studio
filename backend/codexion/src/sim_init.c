@@ -50,8 +50,10 @@ static void	fill_coder(t_sim *sim, int index)
 	sim->coders[index].left = &sim->dongles[index];
 	if (count == 1)
 		sim->coders[index].right = &sim->dongles[index];
+	else if (index == 0)
+		sim->coders[index].right = &sim->dongles[count - 1];
 	else
-		sim->coders[index].right = &sim->dongles[(index + 1) % count];
+		sim->coders[index].right = &sim->dongles[index - 1];
 	sim->coders[index].sim = sim;
 }
 

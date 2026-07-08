@@ -13,7 +13,7 @@ services:
       - distillation
 
   api:
-    image: ghcr.io/callmeeric5/distillation-studio-api:${IMAGE_TAG:?IMAGE_TAG is required}
+    image: ghcr.io/callmeeric5/distillation-studio-api:${API_IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -51,7 +51,7 @@ services:
       - distillation
 
   frontend:
-    image: ghcr.io/callmeeric5/distillation-studio-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    image: ghcr.io/callmeeric5/distillation-studio-frontend:${FRONTEND_IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - api
