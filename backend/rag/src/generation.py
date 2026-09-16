@@ -12,7 +12,7 @@ NO_SOURCES_ANSWER = (
 
 
 class TextGenerator(Protocol):
-    def generate_text(self, prompt: str, max_new_tokens: int = 256) -> str:
+    def generate_text(self, prompt: str, max_new_tokens: int = 128) -> str:
         """Generate text that continues ``prompt``."""
 
 
@@ -29,13 +29,34 @@ class TransformersTextGenerator:
         self.model = AutoModelForCausalLM.from_pretrained(model_name)
         self.model.to(self.device).eval()
 
-    def generate_text(self, prompt: str, max_new_tokens: int = 256) -> str:
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+    def generate_text(self, prompt: str, max_new_tokens: int = 128) -> str:
+        formatted_prompt = self.tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "Give one concise answer. Do not repeat sentences, and "
+                        "stop when the answer is complete."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        inputs = self.tokenizer(
+            formatted_prompt, return_tensors="pt"
+        ).to(self.device)
         with self.torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
+                repetition_penalty=1.15,
+                no_repeat_ngram_size=6,
+                eos_token_id=self.tokenizer.eos_token_id,
+                pad_token_id=self.tokenizer.eos_token_id,
             )
         generated_tokens = outputs[0][inputs["input_ids"].shape[1]:]
         return cast(
@@ -82,7 +103,8 @@ class AnswerGenerator:
             )
         context = "\n\n".join(context_parts)
         return (
-            "Answer the question using only the context below. "
+            "Answer the question once, in at most three concise sentences, using "
+            "only the context below. Do not repeat any sentence or conclusion. "
             "If the context is insufficient, say so clearly.\n\n"
             f"Context:\n{context}\n\n"
             f"Question: {question}\n"

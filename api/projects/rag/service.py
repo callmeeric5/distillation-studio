@@ -28,7 +28,7 @@ class RemoteTextGenerator:
     def close(self) -> None:
         self.client.close()
 
-    def generate_text(self, prompt: str, max_new_tokens: int = 256) -> str:
+    def generate_text(self, prompt: str, max_new_tokens: int = 128) -> str:
         try:
             response = self.client.post(
                 f"{self.base_url}/generate",

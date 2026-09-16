@@ -56,7 +56,7 @@ class SelectFunctionResponse(BaseModel):
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=40000)
-    max_new_tokens: int = Field(default=256, ge=1, le=512)
+    max_new_tokens: int = Field(default=128, ge=1, le=512)
 
 
 class GenerateResponse(BaseModel):
@@ -167,8 +167,23 @@ class QwenRuntime:
             for token_id in candidate_token_ids
         }
 
-    def generate(self, prompt: str, max_new_tokens: int = 256) -> str:
-        inputs = self.tokenizer(prompt, return_tensors="pt")
+    def generate(self, prompt: str, max_new_tokens: int = 128) -> str:
+        formatted_prompt = self.tokenizer.apply_chat_template(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "Give one concise answer. Do not repeat sentences, and "
+                        "stop when the answer is complete."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        inputs = self.tokenizer(formatted_prompt, return_tensors="pt")
         input_token_count = int(inputs["input_ids"].shape[1])
         if input_token_count > MAX_INPUT_TOKENS:
             raise HTTPException(
@@ -181,6 +196,9 @@ class QwenRuntime:
                 **inputs,
                 do_sample=False,
                 max_new_tokens=max_new_tokens,
+                repetition_penalty=1.15,
+                no_repeat_ngram_size=6,
+                eos_token_id=self.tokenizer.eos_token_id,
                 pad_token_id=self.tokenizer.eos_token_id,
             )
         generated_tokens = output[0][input_token_count:]

@@ -30,7 +30,7 @@ class FakeModel:
     def __init__(self) -> None:
         self.closed = False
 
-    def generate_text(self, prompt: str, max_new_tokens: int = 256) -> str:
+    def generate_text(self, prompt: str, max_new_tokens: int = 128) -> str:
         assert "README.md" in prompt
         return "Prefix caching reuses computed KV cache blocks."
 
@@ -94,7 +94,7 @@ def test_answer_endpoint_handles_no_sources_without_calling_model(
     monkeypatch,
 ) -> None:
     class ModelThatMustNotGenerate(FakeModel):
-        def generate_text(self, prompt: str, max_new_tokens: int = 256) -> str:
+        def generate_text(self, prompt: str, max_new_tokens: int = 128) -> str:
             raise AssertionError("The model should not run without sources")
 
     monkeypatch.setattr(service, "Retriever", EmptyRetriever)

@@ -12,9 +12,9 @@ class FakeTextGenerator:
     def __init__(self) -> None:
         self.prompt = ""
 
-    def generate_text(self, prompt: str, max_new_tokens: int = 256) -> str:
+    def generate_text(self, prompt: str, max_new_tokens: int = 128) -> str:
         self.prompt = prompt
-        assert max_new_tokens == 256
+        assert max_new_tokens == 128
         return "Grounded answer"
 
 
@@ -37,6 +37,8 @@ def test_answer_generator_builds_grounded_prompt(tmp_path: Path) -> None:
     assert "prefix caching" in model.prompt
     assert "How does caching work?" in model.prompt
     assert "Source: module.py" in model.prompt
+    assert "at most three concise sentences" in model.prompt
+    assert "Do not repeat" in model.prompt
 
 
 def test_answer_generator_rejects_source_outside_project(tmp_path: Path) -> None:
