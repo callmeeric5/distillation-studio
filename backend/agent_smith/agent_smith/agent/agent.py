@@ -266,7 +266,7 @@ def traceback_source_locations(result: object) -> list[str]:
         parts = filepath.split("/")
         name = filepath.rsplit("/", 1)[-1]
         if (
-            "tests" in parts
+            any(part in {"test", "tests"} for part in parts)
             or "site-packages" in parts
             or name.startswith("test_")
             or name in {"runtests.py", "runner.py"}
@@ -287,14 +287,23 @@ def hint_source_location(text: str) -> tuple[str, int] | None:
     """Find a production source location named by a patch in task hints."""
     path_match = re.search(r"^diff --git a/(\S+) b/\S+", text, re.MULTILINE)
     line_match = re.search(r"^@@ -(\d+)", text, re.MULTILINE)
-    if not path_match or not line_match:
-        return None
-    filepath = path_match.group(1)
+    if path_match and line_match:
+        filepath = path_match.group(1)
+        line = int(line_match.group(1))
+    else:
+        github_location = re.search(
+            r"https?://github\.com/[^/]+/[^/]+/blob/[^/]+/([^#\s]+\.py)#L(\d+)",
+            text,
+        )
+        if not github_location:
+            return None
+        filepath = github_location.group(1)
+        line = int(github_location.group(2))
     parts = filepath.split("/")
     name = parts[-1]
-    if "tests" in parts or name.startswith("test_"):
+    if any(part in {"test", "tests"} for part in parts) or name.startswith("test_"):
         return None
-    return "/testbed/" + filepath, int(line_match.group(1))
+    return "/testbed/" + filepath, line
 
 
 def failing_assertion_hint(result: object) -> str:
@@ -353,7 +362,9 @@ async def run_agent(
         else task.problem_statement + "\n" + task.hints_text
     )
     hint_source_read = (
-        hint_source_location(task.hints_text) if benchmark == "swebench" else None
+        hint_source_location(task.problem_statement + "\n" + task.hints_text)
+        if benchmark == "swebench"
+        else None
     )
     messages = [
         {"role": "system", "content": prompt},
@@ -364,6 +375,7 @@ async def run_agent(
     action_counts = {}
     attempted_edits = set()
     official_tests_passed = False
+    source_edit_pending_test = False
     verified_patch = ""
     verified_mbpp_code = ""
     progress_required = False
@@ -400,6 +412,10 @@ async def run_agent(
                 llm.required_tool = (
                     "final_answer"
                     if benchmark == "mbpp" and verified_mbpp_code
+                    else "get_patch"
+                    if benchmark == "swebench" and official_tests_passed
+                    else "run_tests"
+                    if benchmark == "swebench" and source_edit_pending_test
                     else "run_tests"
                     if benchmark == "swebench" and number == 1
                     else "read_file"
@@ -590,6 +606,7 @@ async def run_agent(
                 if is_edit:
                     if result.success:
                         official_tests_passed = False
+                        source_edit_pending_test = True
                         verified_patch = ""
                         progress_required = False
                         failed_tests_need_edit = False
@@ -614,12 +631,34 @@ async def run_agent(
                     passed = isinstance(data, dict) and data.get("exit_code") == 0
                     if is_official_test and passed:
                         official_tests_passed = True
-                        step.sandbox_output += (
-                            "\nWorkflow: official tests passed. Call get_patch(), then submit it "
-                            "unchanged with final_answer."
+                        source_edit_pending_test = False
+                        patch_result = await execute_with_recovery(
+                            sandbox,
+                            "result = get_patch()",
+                            limits.seconds - (time.monotonic() - started),
                         )
+                        patch = patch_result.result
+                        if (
+                            patch_result.success
+                            and isinstance(patch, str)
+                            and patch.strip()
+                        ):
+                            verified_patch = patch
+                            output.solution = patch
+                            output.success = True
+                            step.sandbox_output += (
+                                "\nWorkflow: official tests passed. The verified patch was "
+                                "captured and submitted automatically."
+                            )
+                        else:
+                            detail = patch_result.error or "get_patch() returned no patch"
+                            step.sandbox_output += (
+                                "\nWorkflow: official tests passed, but the patch could not be "
+                                f"captured automatically: {detail}. Call get_patch() next."
+                            )
                     elif is_official_test:
                         official_tests_passed = False
+                        source_edit_pending_test = False
                         failed_tests_need_edit = True
                         new_source_hint = traceback_source_hint(data)
                         new_assertion_hint = failing_assertion_hint(data)
@@ -658,15 +697,26 @@ async def run_agent(
                         step.sandbox_output += "\nWorkflow: " + instruction
                     elif is_patch and isinstance(data, str) and data.strip():
                         verified_patch = data
-                        step.sandbox_output += (
-                            "\nWorkflow: the patch is ready. If run_tests() passed, submit this "
-                            "exact patch with final_answer."
-                        )
+                        if official_tests_passed:
+                            output.solution = data
+                            output.success = True
+                            step.sandbox_output += (
+                                "\nWorkflow: the verified patch was submitted automatically."
+                            )
+                        else:
+                            step.sandbox_output += (
+                                "\nWorkflow: the patch is ready. Run official tests before "
+                                "submitting it."
+                            )
                     elif is_patch and isinstance(data, str):
                         step.sandbox_output += (
                             "\nWorkflow: get_patch() is empty, so no source edit was applied. "
                             "Read the real file through repository tools and edit it before testing."
                         )
+                        if official_tests_passed:
+                            output.error = (
+                                "Official tests passed but no production patch was produced"
+                            )
                 if (
                     benchmark == "mbpp"
                     and result.success
@@ -689,6 +739,11 @@ async def run_agent(
                     message in result.error for message in FATAL_TOOL_ERRORS
                 ):
                     output.error = result.error
+                elif is_official_test and not result.success:
+                    output.error = (
+                        "Official test execution failed: "
+                        + (result.error or "the tool returned no result")
+                    )
                 if result.completed:
                     answer = result.final_answer or ""
                     verified_copy = verified_patch and comparable_patch(

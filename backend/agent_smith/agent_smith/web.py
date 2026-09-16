@@ -75,7 +75,15 @@ async def execute_web_task(
             [sys.executable, "-m", server_module, "--task-file", str(task_file)]
         )
         try:
-            async with connect_mcp(stdio=command) as mcp:
+            mcp_options = (
+                {
+                    "environment": {"TOOL_TIMEOUT": "600"},
+                    "read_timeout_seconds": 620,
+                }
+                if benchmark == "swebench"
+                else {}
+            )
+            async with connect_mcp(stdio=command, **mcp_options) as mcp:
                 if mcp is None:
                     raise RuntimeError("MCP connection was not created")
                 llm.set_tools(mcp.tools)

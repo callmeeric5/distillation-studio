@@ -76,7 +76,9 @@ def completion_data(
     message = choice.get("message") if isinstance(choice, dict) else None
     if not isinstance(message, dict):
         raise ValueError("provider response is missing the assistant message")
-    if not message.get("content") and not message.get("tool_calls"):
+    content = message.get("content")
+    has_content = isinstance(content, str) and bool(content.strip())
+    if not has_content and not message.get("tool_calls"):
         finish = (
             choice.get("native_finish_reason")
             or choice.get("finish_reason")

@@ -16,7 +16,10 @@ from agent_smith.models.sandbox import SandboxTool
 
 @asynccontextmanager
 async def connect_mcp(
-    stdio: str | None = None, url: str | None = None
+    stdio: str | None = None,
+    url: str | None = None,
+    environment: Mapping[str, str] | None = None,
+    read_timeout_seconds: float = 120,
 ) -> AsyncIterator["MCPConnection | None"]:
     """Open one stdio or HTTP MCP connection and close it on context exit."""
     if stdio and url:
@@ -28,7 +31,9 @@ async def connect_mcp(
         command = shlex.split(stdio)
         transport = stdio_client(
             StdioServerParameters(
-                command=command[0], args=command[1:], env=dict(os.environ)
+                command=command[0],
+                args=command[1:],
+                env={**os.environ, **(environment or {})},
             )
         )
     else:
@@ -38,7 +43,9 @@ async def connect_mcp(
     async with transport as streams:
         # The SDK owns the MCP wire format on both streams.
         async with ClientSession(
-            streams[0], streams[1], read_timeout_seconds=timedelta(seconds=120)
+            streams[0],
+            streams[1],
+            read_timeout_seconds=timedelta(seconds=read_timeout_seconds),
         ) as session:
             info = await session.initialize()
             connection = MCPConnection(session)
