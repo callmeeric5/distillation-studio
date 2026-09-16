@@ -4,13 +4,8 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any
 
-import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from transformers import AutoModelForCausalLM, AutoTokenizer, logging
-
-
-logging.set_verbosity_error()
 
 MODEL_NAME = os.getenv("CALL_ME_MAYBE_MODEL_NAME", "Qwen/Qwen3-0.6B")
 DEVICE = os.getenv("CALL_ME_MAYBE_MODEL_DEVICE", "cpu")
@@ -59,8 +54,22 @@ class SelectFunctionResponse(BaseModel):
     name: str
 
 
+class GenerateRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=40000)
+    max_new_tokens: int = Field(default=256, ge=1, le=512)
+
+
+class GenerateResponse(BaseModel):
+    text: str
+
+
 class QwenRuntime:
     def __init__(self) -> None:
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer, logging
+
+        logging.set_verbosity_error()
+        self.torch = torch
         self.tokenizer = AutoTokenizer.from_pretrained(
             MODEL_NAME,
             trust_remote_code=True,
@@ -70,7 +79,9 @@ class QwenRuntime:
 
         self.model = AutoModelForCausalLM.from_pretrained(
             MODEL_NAME,
-            torch_dtype=torch.float32 if DEVICE == "cpu" else torch.float16,
+            torch_dtype=(
+                self.torch.float32 if DEVICE == "cpu" else self.torch.float16
+            ),
             trust_remote_code=True,
         )
         self.model.to(DEVICE).eval()
@@ -156,9 +167,35 @@ class QwenRuntime:
             for token_id in candidate_token_ids
         }
 
-    def _last_logits(self, input_ids: list[int]) -> torch.Tensor:
-        input_tensor = torch.tensor([input_ids], device=DEVICE, dtype=torch.long)
-        with torch.inference_mode():
+    def generate(self, prompt: str, max_new_tokens: int = 256) -> str:
+        inputs = self.tokenizer(prompt, return_tensors="pt")
+        input_token_count = int(inputs["input_ids"].shape[1])
+        if input_token_count > MAX_INPUT_TOKENS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Input is too long: {input_token_count} tokens.",
+            )
+        inputs = inputs.to(DEVICE)
+        with self.torch.inference_mode():
+            output = self.model.generate(
+                **inputs,
+                do_sample=False,
+                max_new_tokens=max_new_tokens,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+        generated_tokens = output[0][input_token_count:]
+        return str(
+            self.tokenizer.decode(
+                generated_tokens,
+                skip_special_tokens=True,
+            )
+        ).strip()
+
+    def _last_logits(self, input_ids: list[int]) -> Any:
+        input_tensor = self.torch.tensor(
+            [input_ids], device=DEVICE, dtype=self.torch.long
+        )
+        with self.torch.inference_mode():
             output = self.model(input_ids=input_tensor)
         return output.logits[0, -1]
 
@@ -232,4 +269,11 @@ def candidate_logits(request: CandidateLogitsRequest) -> CandidateLogitsResponse
             request.input_ids,
             request.candidate_token_ids,
         )
+    )
+
+
+@app.post("/generate", response_model=GenerateResponse)
+def generate(request: GenerateRequest) -> GenerateResponse:
+    return GenerateResponse(
+        text=get_runtime().generate(request.prompt, request.max_new_tokens)
     )

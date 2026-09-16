@@ -4,6 +4,7 @@ import codexionCover from '../assets/codexion-cover.png';
 import flyInCover from '../assets/fly-in-cover.png';
 import pacManCover from '../assets/pac-man-cover.png';
 import pushSwapCover from '../assets/push-swap-cover.png';
+import ragCover from '../assets/rag-cover.png';
 import traceOpsCover from '../assets/trace-ops-agent-cover.png';
 import type { Project, ProjectStatus, StatusFilter, TabKey } from '../types/projects';
 
@@ -68,6 +69,21 @@ export const projects42: Project[] = [
     slug: 'call-me-maybe',
     routeSlug: 'call_me_maybe',
     tags: ['function calling', 'Qwen', 'constrained decoding'],
+  },
+  {
+    title: 'RAG',
+    category: '42 project',
+    language: 'Common Core / python / LLM',
+    status: 'ready',
+    description:
+      'A grounded question-answering system that retrieves exact vLLM source passages with BM25 before generating an answer.',
+    fullDescription:
+      'RAG searches a bundled vLLM 0.10.1 source tree with a character-accurate BM25 index, retrieves the strongest code and documentation passages, and asks a small Qwen model to answer using only that context. Explore the returned file ranges and source snippets alongside every answer.',
+    endpoint: '/api/projects/rag/answer',
+    coverImage: ragCover,
+    slug: 'rag',
+    routeSlug: 'rag',
+    tags: ['BM25', 'retrieval', 'Qwen'],
   },
   {
     title: 'Push_Swap',

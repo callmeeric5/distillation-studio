@@ -9,4 +9,5 @@ langchain-openai
 langgraph
 numpy
 sqlalchemy
+tqdm
 uvicorn[standard]

@@ -139,7 +139,7 @@ jobs:
         run: pip install -r api/requirements.txt pytest
 
       - name: Compile Python modules
-        run: python -m compileall api backend/a_maze_ing backend/call_me_maybe backend/trace_ops_agent model_services/call_me_maybe
+        run: python -m compileall api backend/a_maze_ing backend/call_me_maybe backend/rag backend/trace_ops_agent model_services/call_me_maybe
 
       - name: Codexion build
         run: make -C backend/codexion
@@ -152,6 +152,9 @@ jobs:
 
       - name: Call_Me_Maybe tests
         run: pytest backend/call_me_maybe/tests api/projects/call_me_maybe
+
+      - name: RAG tests
+        run: pytest backend/rag/tests api/projects/rag model_services/call_me_maybe
 
       - name: Codexion API tests
         run: pytest api/projects/codexion

@@ -4,6 +4,7 @@ import { CodexionStudio } from '../CodexionStudio';
 import { FlyInStudio } from '../FlyInStudio';
 import { PacManStudio } from '../PacManStudio';
 import { PushSwapStudio } from '../PushSwapStudio';
+import { RagStudio } from '../RagStudio';
 import { TraceOpsAgentStudio } from '../TraceOpsAgentStudio';
 import { projectStatusStyles, statusStyles } from '../lib/styles';
 import type { Project, RunState } from '../types/projects';
@@ -85,6 +86,16 @@ export function ProjectPage({
   if (project.slug === 'pacman') {
     return (
       <PacManStudio
+        description={project.description}
+        fullDescription={project.fullDescription}
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (project.slug === 'rag') {
+    return (
+      <RagStudio
         description={project.description}
         fullDescription={project.fullDescription}
         onBack={onBack}

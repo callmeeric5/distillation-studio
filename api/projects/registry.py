@@ -10,6 +10,7 @@ from api.projects.codexion.router import router as codexion_router
 from api.projects.fly_in.router import router as fly_in_router
 from api.projects.pacman.router import router as pacman_router
 from api.projects.push_swap.router import router as push_swap_router
+from api.projects.rag.router import router as rag_router
 from api.projects.trace_ops_agent.router import router as trace_ops_agent_router
 
 
@@ -26,5 +27,6 @@ PROJECT_ROUTERS = [
     ProjectRouter(prefix="/api/projects/fly-in", router=fly_in_router),
     ProjectRouter(prefix="/api/projects/pacman", router=pacman_router),
     ProjectRouter(prefix="/api/projects/push-swap", router=push_swap_router),
+    ProjectRouter(prefix="/api/projects/rag", router=rag_router),
     ProjectRouter(prefix="/api/projects/trace-ops-agent", router=trace_ops_agent_router),
 ]

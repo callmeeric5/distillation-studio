@@ -1,0 +1,16 @@
+[project]
+name = "rag"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fire>=0.7.1",
+    "nltk>=3.10.2",
+    "pydantic>=2.13.4",
+    "torch>=2.13.0",
+    "tqdm>=4.70.0",
+    "transformers>=5.15.0",
+]
+
+
