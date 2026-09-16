@@ -23,6 +23,10 @@ WORKDIR /app
 RUN addgroup --system app \
   && adduser --system --ingroup app app
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends docker.io \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY api/requirements.txt .
 COPY backend/pac_man/lib/mazegenerator-2.0.1-py3-none-any.whl /tmp/mazegenerator-2.0.1-py3-none-any.whl
 RUN pip install --no-cache-dir --upgrade pip \
@@ -39,6 +43,8 @@ COPY backend/call_me_maybe/ ./backend/call_me_maybe/
 COPY backend/pac_man/ ./backend/pac_man/
 COPY backend/rag/ ./backend/rag/
 COPY backend/trace_ops_agent/ ./backend/trace_ops_agent/
+COPY backend/agent_smith/ ./backend/agent_smith/
+RUN pip install --no-cache-dir ./backend/agent_smith
 RUN mkdir -p ./backend/push_swap
 COPY --from=builder /build/backend/push_swap/push_swap ./backend/push_swap/push_swap
 RUN mkdir -p ./backend/codexion

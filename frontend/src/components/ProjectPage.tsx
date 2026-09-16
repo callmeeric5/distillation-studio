@@ -1,4 +1,5 @@
 import { AMazeIngStudio } from '../AMazeIngStudio';
+import { AgentSmithStudio } from '../AgentSmithStudio';
 import { CallMeMaybeStudio } from '../CallMeMaybeStudio';
 import { CodexionStudio } from '../CodexionStudio';
 import { FlyInStudio } from '../FlyInStudio';
@@ -26,6 +27,16 @@ export function ProjectPage({
   if (project.slug === 'push-swap') {
     return (
       <PushSwapStudio
+        description={project.description}
+        fullDescription={project.fullDescription}
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (project.slug === 'agent-smith') {
+    return (
+      <AgentSmithStudio
         description={project.description}
         fullDescription={project.fullDescription}
         onBack={onBack}

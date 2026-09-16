@@ -1,4 +1,5 @@
 import mazeCover from '../assets/a-maze-ing-cover.png';
+import agentSmithCover from '../assets/agent-smith-cover.png';
 import callMeMaybeCover from '../assets/call-me-maybe-cover.png';
 import codexionCover from '../assets/codexion-cover.png';
 import flyInCover from '../assets/fly-in-cover.png';
@@ -116,6 +117,21 @@ export const projects42: Project[] = [
 ];
 
 export const funProjects: Project[] = [
+  {
+    title: 'Agent_Smith',
+    category: 'Fun project',
+    language: 'Python / MCP / Docker',
+    status: 'ready',
+    description:
+      'A sandboxed code agent that solves function challenges and real repository bugs through a visible Thought, Code, Observation loop.',
+    fullDescription:
+      'Agent_Smith is a compact code-agent framework for MBPP and SWE-bench. Choose a verified provider and model, supply a request-only API key, then watch the agent inspect, execute, test, and repair code inside isolated Docker sandboxes before returning verified Python source or a Git patch.',
+    endpoint: '/api/projects/agent-smith/runs',
+    coverImage: agentSmithCover,
+    slug: 'agent-smith',
+    routeSlug: 'agent_smith',
+    tags: ['Code Agent', 'MCP', 'SWE-bench'],
+  },
   {
     title: 'Trace_Ops_Agent',
     category: 'Fun project',

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from fastapi import APIRouter
 
 from api.projects.a_maze_ing.router import router as a_maze_ing_router
+from api.projects.agent_smith.router import router as agent_smith_router
 from api.projects.call_me_maybe.router import router as call_me_maybe_router
 from api.projects.codexion.router import router as codexion_router
 from api.projects.fly_in.router import router as fly_in_router
@@ -22,6 +23,7 @@ class ProjectRouter:
 
 PROJECT_ROUTERS = [
     ProjectRouter(prefix="/api/projects/a-maze-ing", router=a_maze_ing_router),
+    ProjectRouter(prefix="/api/projects/agent-smith", router=agent_smith_router),
     ProjectRouter(prefix="/api/projects/call-me-maybe", router=call_me_maybe_router),
     ProjectRouter(prefix="/api/projects/codexion", router=codexion_router),
     ProjectRouter(prefix="/api/projects/fly-in", router=fly_in_router),

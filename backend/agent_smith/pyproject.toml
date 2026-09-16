@@ -1,0 +1,28 @@
+[project]
+name = "agent-smith"
+version = "0.1.0"
+description = "A readable Python code agent for MBPP and SWE-bench"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.13.4",
+    "mcp>=1.12,<2",
+    "python-dotenv>=1.0,<2",
+]
+
+[project.scripts]
+sandbox = "agent_smith.sandbox.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent_smith"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"agent_mbpp" = "agent_mbpp"
+"agent_swebench" = "agent_swebench"
+"mcp_tools_mbpp.py" = "mcp_tools_mbpp.py"
+"mcp_tools_swebench.py" = "mcp_tools_swebench.py"

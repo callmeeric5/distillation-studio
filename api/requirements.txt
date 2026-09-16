@@ -7,7 +7,9 @@ langchain-core
 langchain-google-genai
 langchain-openai
 langgraph
+mcp>=1.12,<2
 numpy
+python-dotenv>=1.0,<2
 sqlalchemy
 tqdm
 uvicorn[standard]

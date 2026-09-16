@@ -1,4 +1,23 @@
 services:
+  agent-smith-docker:
+    image: docker:27-dind
+    privileged: true
+    restart: unless-stopped
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command: ["--host=tcp://0.0.0.0:2375", "--tls=false"]
+    expose:
+      - "2375"
+    volumes:
+      - agent-smith-docker:/var/lib/docker
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - distillation
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -16,11 +35,15 @@ services:
     image: ghcr.io/callmeeric5/distillation-studio-api:${API_IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
+      agent-smith-docker:
+        condition: service_healthy
       postgres:
         condition: service_started
       call-me-maybe-model:
         condition: service_started
     environment:
+      DOCKER_HOST: tcp://agent-smith-docker:2375
+      SANDBOX_IMAGE: python:3.12-slim
       CALL_ME_MAYBE_MODEL_URL: http://call-me-maybe-model:8001
       RAG_MODEL_URL: http://call-me-maybe-model:8001
       DATABASE_URL: postgresql+asyncpg://traceops:${TRACEOPS_POSTGRES_PASSWORD:-traceops}@postgres:5432/traceops
@@ -69,5 +92,6 @@ networks:
     driver: bridge
 
 volumes:
+  agent-smith-docker:
   traceops-postgres:
   call-me-maybe-hf-cache:

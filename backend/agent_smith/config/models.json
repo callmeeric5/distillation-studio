@@ -1,0 +1,7 @@
+{
+    "model_name": "qwen/qwen3.6-27b",
+    "provider_url": "https://api.groq.com/openai/v1",
+    "timeout_seconds": 30,
+    "max_retries": 1,
+    "max_iterations": 20
+}
