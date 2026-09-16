@@ -6,6 +6,7 @@ from agent_smith.models.agent import SolutionOutput
 from agent_smith.models.benchmark import MBPPTaskInput
 from agent_smith.models.llm import LLMResponse, ProviderConfig
 from agent_smith.models.sandbox import SandboxResult
+from agent_smith.web import exception_details
 
 
 def test_direct_api_key_does_not_require_environment(monkeypatch):
@@ -17,6 +18,16 @@ def test_direct_api_key_does_not_require_environment(monkeypatch):
     client = UnifiedLLMClient(config, api_keys=[" request-key "])
     assert client.keys == ["request-key"]
     asyncio.run(client.close())
+
+
+def test_task_group_errors_expose_the_leaf_cause():
+    error = ExceptionGroup(
+        "unhandled errors in a TaskGroup",
+        [RuntimeError("Cannot connect to the Docker daemon")],
+    )
+    assert exception_details(error) == (
+        "RuntimeError: Cannot connect to the Docker daemon"
+    )
 
 
 def test_run_agent_publishes_completed_steps():

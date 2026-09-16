@@ -18,6 +18,18 @@ services:
     networks:
       - distillation
 
+  agent-smith-sandbox-init:
+    image: docker:27-cli
+    restart: "no"
+    depends_on:
+      agent-smith-docker:
+        condition: service_healthy
+    environment:
+      DOCKER_HOST: tcp://agent-smith-docker:2375
+    command: ["pull", "python:3.12-slim"]
+    networks:
+      - distillation
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -35,8 +47,8 @@ services:
     image: ghcr.io/callmeeric5/distillation-studio-api:${API_IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
-      agent-smith-docker:
-        condition: service_healthy
+      agent-smith-sandbox-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_started
       call-me-maybe-model:

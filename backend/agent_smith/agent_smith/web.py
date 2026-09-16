@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import shlex
 import sys
 import tempfile
@@ -21,6 +22,23 @@ from agent_smith.sandbox import Sandbox
 
 StepCallback = Callable[[StepMetrics, SolutionOutput], Awaitable[None] | None]
 TaskInput = MBPPTaskInput | SWEBenchTaskInput
+
+
+def exception_details(error: BaseException) -> str:
+    """Flatten TaskGroup exceptions so deployment errors remain actionable."""
+    if isinstance(error, BaseExceptionGroup):
+        messages = [exception_details(item) for item in error.exceptions]
+        return " | ".join(dict.fromkeys(message for message in messages if message))
+    message = str(error).strip()
+    return f"{type(error).__name__}: {message or 'no details'}"
+
+
+def contains_cancellation(error: BaseException) -> bool:
+    if isinstance(error, asyncio.CancelledError):
+        return True
+    if isinstance(error, BaseExceptionGroup):
+        return any(contains_cancellation(item) for item in error.exceptions)
+    return False
 
 
 async def execute_web_task(
@@ -71,5 +89,9 @@ async def execute_web_task(
                         started=started,
                         on_step=on_step,
                     )
+        except BaseExceptionGroup as error:
+            if contains_cancellation(error):
+                raise asyncio.CancelledError from None
+            raise RuntimeError(f"Agent runtime failed: {exception_details(error)}") from None
         finally:
             await llm.close()

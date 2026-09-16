@@ -19,6 +19,16 @@ from agent_smith.sandbox.executor import Sandbox
 StepCallback = Callable[[StepMetrics, SolutionOutput], Awaitable[None] | None]
 
 
+async def publish_step(
+    callback: StepCallback | None, step: StepMetrics, output: SolutionOutput
+) -> None:
+    if callback is None:
+        return
+    callback_result = callback(step, output)
+    if inspect.isawaitable(callback_result):
+        await callback_result
+
+
 @dataclass(frozen=True)
 class Limits:
     iterations: int
@@ -413,6 +423,7 @@ async def run_agent(
             step.retries = max(0, llm.last_attempts - 1)
             step.sandbox_output = f"LLM error: {type(exc).__name__}: {exc}"
             output.error = step.sandbox_output
+            await publish_step(on_step, step, output)
             break
         step = StepMetrics(step=number, **response.model_dump())
         output.steps[-1] = step
@@ -424,6 +435,7 @@ async def run_agent(
         ):
             output.error = "Provider-reported token usage exceeded task limit"
             step.sandbox_output = output.error
+            await publish_step(on_step, step, output)
             break
 
         # 3. Extract and execute Python. Formatting errors become observations.
@@ -723,10 +735,7 @@ async def run_agent(
         if retry_errors:
             step.sandbox_output += "\nRequest retry: " + " | ".join(retry_errors[-2:])
 
-        if on_step is not None:
-            callback_result = on_step(step, output)
-            if inspect.isawaitable(callback_result):
-                await callback_result
+        await publish_step(on_step, step, output)
 
         # 4. Give the real execution result to the model on the next turn.
         print(
