@@ -6,7 +6,6 @@ import re
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from agent_smith.llm.client import UnifiedLLMClient
 from agent_smith.llm.extraction import extract_with_feedback

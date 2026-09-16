@@ -373,7 +373,10 @@ def validate_diagnostic_python(code: str) -> None:
 
 
 def run_python(
-    code: str, workdir: str | Path = "/testbed", timeout: int = 120
+    code: str,
+    workdir: str | Path = "/testbed",
+    timeout: int = 120,
+    interpreter: str | None = None,
 ) -> dict[str, object]:
     """Run a read-only diagnostic snippet without shell quote escaping."""
     validate_diagnostic_python(code)
@@ -381,7 +384,10 @@ def run_python(
     try:
         script.write(code)
         script.close()
-        command = f"{shlex.quote(sys.executable)} {shlex.quote(script.name)}"
+        command = (
+            f"{shlex.quote(interpreter or sys.executable)} "
+            f"{shlex.quote(script.name)}"
+        )
         return run_command(command, workdir, timeout)
     finally:
         Path(script.name).unlink()

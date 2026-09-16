@@ -26,3 +26,6 @@ packages = ["agent_smith"]
 "agent_swebench" = "agent_swebench"
 "mcp_tools_mbpp.py" = "mcp_tools_mbpp.py"
 "mcp_tools_swebench.py" = "mcp_tools_swebench.py"
+
+[tool.ruff]
+target-version = "py312"

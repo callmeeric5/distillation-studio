@@ -22,11 +22,21 @@ services:
     image: docker:27-cli
     restart: "no"
     depends_on:
+      agent-smith-binfmt:
+        condition: service_completed_successfully
       agent-smith-docker:
         condition: service_healthy
     environment:
       DOCKER_HOST: tcp://agent-smith-docker:2375
     command: ["pull", "python:3.12-slim"]
+    networks:
+      - distillation
+
+  agent-smith-binfmt:
+    image: tonistiigi/binfmt
+    privileged: true
+    restart: "no"
+    command: ["--install", "amd64"]
     networks:
       - distillation
 
