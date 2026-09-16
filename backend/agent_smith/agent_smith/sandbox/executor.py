@@ -34,12 +34,17 @@ class Sandbox:
 
     async def docker(self, *arguments: str) -> str:
         """Run one short Docker command and wait for it to finish."""
-        process = await asyncio.create_subprocess_exec(
-            "docker",
-            *arguments,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "docker",
+                *arguments,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError as error:
+            raise RuntimeError(
+                "Docker CLI is not installed in the Agent Smith host container"
+            ) from error
         try:
             # Collect both output streams and enforce a host-side timeout.
             stdout, stderr = await asyncio.wait_for(process.communicate(), 60)

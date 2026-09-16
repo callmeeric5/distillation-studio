@@ -13,6 +13,8 @@ RUN make -C backend/push_swap
 COPY backend/codexion/ ./backend/codexion/
 RUN make -C backend/codexion
 
+FROM docker:27-cli AS docker-cli
+
 FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -23,9 +25,8 @@ WORKDIR /app
 RUN addgroup --system app \
   && adduser --system --ingroup app app
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends docker.io \
-  && rm -rf /var/lib/apt/lists/*
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+RUN docker --version
 
 COPY api/requirements.txt .
 COPY backend/pac_man/lib/mazegenerator-2.0.1-py3-none-any.whl /tmp/mazegenerator-2.0.1-py3-none-any.whl
