@@ -170,6 +170,30 @@ button:disabled {
   filter: saturate(0.9) brightness(0.88);
 }
 
+.theme-dark .tap-map-label {
+  fill: #f4efe6 !important;
+}
+
+.theme-dark .tap-map-edge {
+  stroke: #514a42 !important;
+}
+
+.tap-player-marker {
+  pointer-events: none;
+  transition: transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.tap-map-node {
+  outline: none;
+  transition: opacity 180ms ease;
+}
+
+.tap-map-node[role="button"]:hover,
+.tap-map-node[role="button"]:focus-visible {
+  opacity: 0.78;
+}
+
 .theme-dark .theme-toggle {
   border-color: #4a433b !important;
   background-color: #211f1d !important;

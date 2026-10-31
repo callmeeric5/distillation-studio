@@ -7,6 +7,7 @@ import pacManCover from '../assets/pac-man-cover.png';
 import pushSwapCover from '../assets/push-swap-cover.png';
 import ragCover from '../assets/rag-cover.png';
 import traceOpsCover from '../assets/trace-ops-agent-cover.png';
+import tapCover from '../assets/tap-cover.png';
 import type { Project, ProjectStatus, StatusFilter, TabKey } from '../types/projects';
 
 export const tabs: Array<{ key: TabKey; label: string }> = [
@@ -16,6 +17,20 @@ export const tabs: Array<{ key: TabKey; label: string }> = [
 ];
 
 export const projects42: Project[] = [
+  {
+    title: 'The Answer Protocol',
+    category: '42 project',
+    language: 'Rust / TCP / WebSocket',
+    status: 'ready',
+    description:
+      'A shared-world text adventure where players explore, chat, form groups, move unique items, fight, and complete quests in real time.',
+    fullDescription:
+      'The Answer Protocol is a Rust multiplayer adventure built around a line-based TCP protocol. The authoritative server owns one shared nine-room world while this browser studio bridges its live protocol through FastAPI, turning rooms, combat, quests, groups, chat, and asynchronous events into a visual interface without moving the game rules into React.',
+    coverImage: tapCover,
+    slug: 'tap',
+    routeSlug: 'tap',
+    tags: ['Rust', 'TCP protocol', 'multiplayer'],
+  },
   {
     title: 'Agent_Smith',
     category: '42 project',

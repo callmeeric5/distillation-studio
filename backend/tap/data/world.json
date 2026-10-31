@@ -1,0 +1,187 @@
+{
+  "start_room": "loc.village_square",
+  "rooms": {
+    "loc.village_square": {
+      "name": "Village Square",
+      "description": "A sunny cobblestone square with paths leading in every direction.",
+      "exits": {
+        "north": "loc.bakery",
+        "east": "loc.herb_garden",
+        "south": "loc.lakeside",
+        "west": "loc.guard_post"
+      },
+      "items": [],
+      "npcs": []
+    },
+    "loc.bakery": {
+      "name": "Warm Bakery",
+      "description": "Fresh bread cools beside a brick oven.",
+      "exits": {
+        "south": "loc.village_square",
+        "east": "loc.old_bridge"
+      },
+      "items": ["item.bread"],
+      "npcs": ["npc.baker"]
+    },
+    "loc.old_bridge": {
+      "name": "Old Bridge",
+      "description": "A weathered bridge crosses a narrow, fast stream.",
+      "exits": {
+        "west": "loc.bakery",
+        "south": "loc.forest_path"
+      },
+      "items": [],
+      "npcs": []
+    },
+    "loc.forest_path": {
+      "name": "Forest Path",
+      "description": "Tall pines make a green tunnel around the path.",
+      "exits": {
+        "north": "loc.old_bridge",
+        "west": "loc.ancient_ruins",
+        "south": "loc.cave"
+      },
+      "items": [],
+      "npcs": []
+    },
+    "loc.ancient_ruins": {
+      "name": "Ancient Ruins",
+      "description": "Broken stone walls surround a quiet courtyard.",
+      "exits": {
+        "east": "loc.forest_path",
+        "south": "loc.guard_post"
+      },
+      "items": ["item.old_map"],
+      "npcs": []
+    },
+    "loc.guard_post": {
+      "name": "Guard Post",
+      "description": "A small watchtower overlooks the western road.",
+      "exits": {
+        "north": "loc.ancient_ruins",
+        "east": "loc.village_square"
+      },
+      "items": ["item.lantern"],
+      "npcs": ["npc.guard"]
+    },
+    "loc.herb_garden": {
+      "name": "Herb Garden",
+      "description": "Neat beds of fragrant plants grow behind a low fence.",
+      "exits": {
+        "west": "loc.village_square",
+        "south": "loc.lakeside"
+      },
+      "items": ["item.healing_herbs"],
+      "npcs": ["npc.healer"]
+    },
+    "loc.lakeside": {
+      "name": "Lakeside",
+      "description": "Reeds sway beside clear blue water.",
+      "exits": {
+        "north": "loc.herb_garden",
+        "west": "loc.village_square"
+      },
+      "items": [],
+      "npcs": []
+    },
+    "loc.cave": {
+      "name": "Goblin Cave",
+      "description": "A cold side passage ends in a smoky underground den.",
+      "exits": {
+        "north": "loc.forest_path"
+      },
+      "items": [],
+      "npcs": ["npc.goblin"]
+    }
+  },
+  "items": {
+    "item.bread": {
+      "name": "Fresh Bread",
+      "description": "A warm loaf from the village bakery.",
+      "obtainable": true
+    },
+    "item.healing_herbs": {
+      "name": "Healing Herbs",
+      "description": "Green leaves used by the village healer.",
+      "obtainable": true
+    },
+    "item.lantern": {
+      "name": "Brass Lantern",
+      "description": "A sturdy lantern with enough oil for one journey.",
+      "obtainable": true
+    },
+    "item.old_map": {
+      "name": "Old Map",
+      "description": "A faded map showing paths around the village.",
+      "obtainable": true
+    },
+    "item.healing_potion": {
+      "name": "Healing Potion",
+      "description": "A red potion awarded for helping the healer.",
+      "obtainable": true
+    },
+    "item.guard_medal": {
+      "name": "Guard Medal",
+      "description": "A medal awarded for making the roads safer.",
+      "obtainable": true
+    }
+  },
+  "npcs": {
+    "npc.healer": {
+      "name": "Village Healer",
+      "description": "A patient herbalist carrying a worn notebook.",
+      "dialogue": ["The garden has what I need, if you can spare the time."],
+      "hostile": false,
+      "hp": 30,
+      "damage": 0,
+      "quest": "quest.fetch_herbs"
+    },
+    "npc.guard": {
+      "name": "Village Guard",
+      "description": "A watchful guard in a dented helmet.",
+      "dialogue": ["A goblin has occupied the cave beyond the forest."],
+      "hostile": false,
+      "hp": 50,
+      "damage": 0,
+      "quest": "quest.defeat_goblin"
+    },
+    "npc.baker": {
+      "name": "Baker",
+      "description": "A cheerful baker dusted with flour.",
+      "dialogue": ["Welcome! The first loaf of the day is always the best."],
+      "hostile": false,
+      "hp": 25,
+      "damage": 0,
+      "quest": null
+    },
+    "npc.goblin": {
+      "name": "Cave Goblin",
+      "description": "A small but dangerous goblin blocks the cave.",
+      "dialogue": ["The goblin growls and reaches for its club."],
+      "hostile": true,
+      "hp": 40,
+      "damage": 15,
+      "quest": null
+    }
+  },
+  "quests": {
+    "quest.fetch_herbs": {
+      "description": "Bring the Healing Herbs to the Village Healer.",
+      "giver": "npc.healer",
+      "objective": {
+        "kind": "have_item",
+        "target": "item.healing_herbs"
+      },
+      "reward": "item.healing_potion"
+    },
+    "quest.defeat_goblin": {
+      "description": "Defeat the Cave Goblin and report to the Village Guard.",
+      "giver": "npc.guard",
+      "objective": {
+        "kind": "defeat_npc",
+        "target": "npc.goblin"
+      },
+      "reward": "item.guard_medal"
+    }
+  }
+}

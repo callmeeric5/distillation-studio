@@ -13,6 +13,14 @@ RUN make -C backend/push_swap
 COPY backend/codexion/ ./backend/codexion/
 RUN make -C backend/codexion
 
+FROM rust:1.97-slim-bookworm AS tap-builder
+
+WORKDIR /build/backend/tap
+
+COPY backend/tap/Cargo.toml backend/tap/Cargo.lock ./
+COPY backend/tap/src/ ./src/
+RUN cargo build --locked --release --no-default-features --bin server
+
 FROM docker:27-cli AS docker-cli
 
 FROM python:3.12-slim AS runtime
@@ -45,6 +53,9 @@ COPY backend/pac_man/ ./backend/pac_man/
 COPY backend/rag/ ./backend/rag/
 COPY backend/trace_ops_agent/ ./backend/trace_ops_agent/
 COPY backend/agent_smith/ ./backend/agent_smith/
+RUN mkdir -p ./backend/tap/data
+COPY --from=tap-builder /build/backend/tap/target/release/server ./backend/tap/server
+COPY backend/tap/data/world.json ./backend/tap/data/world.json
 RUN pip install --no-cache-dir ./backend/agent_smith
 RUN mkdir -p ./backend/push_swap
 COPY --from=builder /build/backend/push_swap/push_swap ./backend/push_swap/push_swap
@@ -54,6 +65,7 @@ COPY --from=builder /build/backend/codexion/codexion ./backend/codexion/codexion
 RUN find ./backend -type d -name __pycache__ -prune -exec rm -rf {} + \
   && chmod +x ./backend/push_swap/push_swap \
   && chmod +x ./backend/codexion/codexion \
+  && chmod +x ./backend/tap/server \
   && chown -R app:app /app
 
 USER app

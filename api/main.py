@@ -6,13 +6,18 @@ from fastapi import FastAPI
 
 from api.projects.registry import PROJECT_ROUTERS
 from api.projects.agent_smith.service import run_manager
+from api.projects.tap.service import tap_server_manager
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await run_manager.start()
     try:
-        yield
+        await tap_server_manager.start()
+        try:
+            yield
+        finally:
+            await tap_server_manager.stop()
     finally:
         await run_manager.stop()
 

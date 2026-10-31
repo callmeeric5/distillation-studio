@@ -13,6 +13,7 @@ from api.projects.pacman.router import router as pacman_router
 from api.projects.push_swap.router import router as push_swap_router
 from api.projects.rag.router import router as rag_router
 from api.projects.trace_ops_agent.router import router as trace_ops_agent_router
+from api.projects.tap.router import router as tap_router
 
 
 @dataclass(frozen=True)
@@ -31,4 +32,5 @@ PROJECT_ROUTERS = [
     ProjectRouter(prefix="/api/projects/push-swap", router=push_swap_router),
     ProjectRouter(prefix="/api/projects/rag", router=rag_router),
     ProjectRouter(prefix="/api/projects/trace-ops-agent", router=trace_ops_agent_router),
+    ProjectRouter(prefix="/api/projects/tap", router=tap_router),
 ]

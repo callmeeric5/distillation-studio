@@ -18,6 +18,7 @@
 
 **/*.o
 **/*.d
+backend/tap/target
 backend/push_swap/push_swap
 backend/push_swap/checker_os
 backend/push_swap/.!*checker_os

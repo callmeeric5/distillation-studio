@@ -7,6 +7,7 @@ import { PacManStudio } from '../PacManStudio';
 import { PushSwapStudio } from '../PushSwapStudio';
 import { RagStudio } from '../RagStudio';
 import { TraceOpsAgentStudio } from '../TraceOpsAgentStudio';
+import { TapStudio } from '../TapStudio';
 import { projectStatusStyles, statusStyles } from '../lib/styles';
 import type { Project, RunState } from '../types/projects';
 import { CollapsibleDescription } from './CollapsibleDescription';
@@ -107,6 +108,16 @@ export function ProjectPage({
   if (project.slug === 'rag') {
     return (
       <RagStudio
+        description={project.description}
+        fullDescription={project.fullDescription}
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (project.slug === 'tap') {
+    return (
+      <TapStudio
         description={project.description}
         fullDescription={project.fullDescription}
         onBack={onBack}

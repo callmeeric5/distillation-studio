@@ -141,6 +141,20 @@ jobs:
       - name: Compile Python modules
         run: python -m compileall api backend/agent_smith/agent_smith backend/a_maze_ing backend/call_me_maybe backend/rag backend/trace_ops_agent model_services/call_me_maybe
 
+      - name: TAP format
+        run: cargo fmt --manifest-path backend/tap/Cargo.toml -- --check
+
+      - name: TAP lint
+        run: cargo clippy --manifest-path backend/tap/Cargo.toml --locked --no-default-features --lib --bin server --bin cli -- -D warnings
+
+      - name: TAP tests and release server
+        run: |
+          cargo test --manifest-path backend/tap/Cargo.toml --locked --no-default-features
+          cargo build --manifest-path backend/tap/Cargo.toml --locked --release --no-default-features --bin server
+
+      - name: TAP API tests
+        run: pytest api/projects/tap
+
       - name: Agent Smith tests
         run: pytest backend/agent_smith/tests api/projects/agent_smith
 
