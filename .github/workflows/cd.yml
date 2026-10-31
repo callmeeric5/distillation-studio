@@ -66,13 +66,13 @@ jobs:
             echo "api=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if grep -Eq '^(frontend/|\.dockerignore$|\.github/workflows/cd\.yml$)' /tmp/changed-files; then
+          if grep -Eq '^(frontend/|\.github/workflows/cd\.yml$)' /tmp/changed-files; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "frontend=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if grep -Eq '^(model_services/call_me_maybe/|\.dockerignore$|\.github/workflows/cd\.yml$)' /tmp/changed-files; then
+          if grep -Eq '^(model_services/call_me_maybe/|\.github/workflows/cd\.yml$)' /tmp/changed-files; then
             echo "model=true" >> "$GITHUB_OUTPUT"
           else
             echo "model=false" >> "$GITHUB_OUTPUT"

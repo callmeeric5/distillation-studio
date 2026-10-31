@@ -16,7 +16,9 @@ RUN addgroup --system app \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-  && pip install --no-cache-dir -r requirements.txt
+  && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+  && pip install --no-cache-dir -r requirements.txt \
+  && python -c "import torch; assert torch.version.cuda is None, torch.version.cuda"
 
 COPY app/ ./app/
 
