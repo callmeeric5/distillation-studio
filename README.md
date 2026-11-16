@@ -45,6 +45,11 @@ The Oracle server deploy directory is `/home/ubuntu/distillation-studio`. Cloudf
 - `/home/ubuntu/distillation-studio/certs/origin.pem`
 - `/home/ubuntu/distillation-studio/certs/origin.key`
 
+The production host reserves public port `443` for its SNI router. The frontend
+publishes HTTPS only on `127.0.0.1:8446`; the router must send
+`distillation.studio` and `www.distillation.studio` to that upstream. Port `80`
+remains published for the HTTP-to-HTTPS redirect.
+
 GitHub Actions deploys only for application, Docker, Compose, or deployment file changes. The CD workflow detects which image inputs changed and builds only those ARM64 images: `API_IMAGE_TAG` for the shared FastAPI container, `FRONTEND_IMAGE_TAG` for the Nginx/Vite container, and `CALL_ME_MAYBE_MODEL_IMAGE_TAG` for the shared model container. Unchanged image tags are preserved in the server `.env`, then deployment runs `docker compose pull` and `docker compose up -d --remove-orphans`. The model container stores Hugging Face weights in the `call-me-maybe-hf-cache` Docker volume, so the first deploy can take longer while `Qwen/Qwen3-0.6B` downloads. RAG uses `RAG_MODEL_URL` to call the same container and does not load a second model in the API image.
 
 `TRACEOPS_POSTGRES_PASSWORD` can be added to the deployment `.env` later if you want to replace the Compose default password. Provider API keys for Trace-Ops-Agent are never stored; they are used only for the current request.

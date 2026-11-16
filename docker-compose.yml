@@ -103,7 +103,7 @@ services:
       - api
     ports:
       - "80:80"
-      - "443:443"
+      - "127.0.0.1:8446:443"
     volumes:
       - /home/ubuntu/distillation-studio/certs:/etc/nginx/certs:ro
     networks:
