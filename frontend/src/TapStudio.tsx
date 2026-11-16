@@ -4,14 +4,20 @@ import {
   fetchTapWorld,
   sendTapCommand,
   tapSessionUrl,
+  type TapCombat,
+  type TapDialogue,
   type TapLook,
+  type TapQuest,
   type TapServerMessage,
+  type TapStatus,
   type TapWorld,
 } from './api/tap';
 import { CollapsibleDescription } from './components/CollapsibleDescription';
 
 type SessionState = 'idle' | 'connecting' | 'connected' | 'disconnected';
-type ChatLine = { channel: string; player: string; message: string };
+type ChatScope = 'GLOBAL' | 'ROOM' | 'GROUP';
+type ChatLine = { channel: ChatScope; player: string; message: string };
+type ActivityLine = { kind: 'combat' | 'group' | 'presence'; message: string };
 type Point = { x: number; y: number };
 
 const buttonClass =
@@ -42,6 +48,10 @@ function parseJsonResponse(line: string) {
 
 function itemLabel(id: string, world: TapWorld | null) {
   return world?.items[id]?.name ?? id;
+}
+
+function npcLabel(id: string, world: TapWorld | null) {
+  return world?.npcs[id]?.name ?? id;
 }
 
 function buildGraph(world: TapWorld) {
@@ -187,8 +197,17 @@ export function TapStudio({
   const [visited, setVisited] = useState<Set<string>>(new Set());
   const [inventory, setInventory] = useState<string[]>([]);
   const [online, setOnline] = useState(0);
+  const [status, setStatus] = useState<TapStatus>({ hp: 100, max_hp: 100, status: 'healthy' });
+  const [combat, setCombat] = useState<TapCombat | null>(null);
+  const [quests, setQuests] = useState<TapQuest[]>([]);
+  const [dialogue, setDialogue] = useState<TapDialogue | null>(null);
   const [chatInput, setChatInput] = useState('');
+  const [chatScope, setChatScope] = useState<ChatScope>('GLOBAL');
   const [chatLines, setChatLines] = useState<ChatLine[]>([]);
+  const [groupInput, setGroupInput] = useState('');
+  const [groupId, setGroupId] = useState('');
+  const [groupInvite, setGroupInvite] = useState('');
+  const [activityLines, setActivityLines] = useState<ActivityLine[]>([]);
   const [protocolLines, setProtocolLines] = useState<string[]>([]);
 
   useEffect(() => {
@@ -206,7 +225,7 @@ export function TapStudio({
   }, []);
 
   const refresh = useCallback(() => {
-    for (const command of ['LOOK', 'INVENTORY', 'WHO']) send(command);
+    for (const command of ['LOOK', 'INVENTORY', 'STATUS', 'QUESTS', 'WHO']) send(command);
   }, [send]);
 
   const processLine = useCallback(
@@ -241,20 +260,69 @@ export function TapStudio({
       const chat = line.match(/^EVT (GLOBAL|ROOM|GROUP) CHAT (\S+) (.*)$/);
       if (chat) {
         setChatLines((current) => [
-          ...current.slice(-9),
-          { channel: chat[1], player: chat[2], message: chat[3] },
+          ...current.slice(-19),
+          { channel: chat[1] as ChatScope, player: chat[2], message: chat[3] },
         ]);
+        return;
+      }
+
+      const invitation = line.match(/^EVT GROUP INVITE (\S+)$/)?.[1];
+      if (invitation) {
+        setGroupInvite(invitation);
+        setActivityLines((current) => [
+          ...current.slice(-11),
+          { kind: 'group', message: `${invitation} invited you to their group.` },
+        ]);
+        setNotice(`${invitation} invited you to a group.`);
+        return;
+      }
+
+      const groupEvent = line.match(/^EVT GROUP (JOIN|LEAVE) (\S+)$/);
+      if (groupEvent) {
+        setActivityLines((current) => [
+          ...current.slice(-11),
+          { kind: 'group', message: `${groupEvent[2]} ${groupEvent[1] === 'JOIN' ? 'joined' : 'left'} the group.` },
+        ]);
+        return;
+      }
+
+      const combatEvent = line.match(/^EVT ROOM COMBAT (.*)$/)?.[1];
+      if (combatEvent) {
+        setActivityLines((current) => [
+          ...current.slice(-11),
+          { kind: 'combat', message: combatEvent },
+        ]);
+        send('LOOK');
+        return;
+      }
+
+      const presenceEvent = line.match(/^EVT ROOM PRESENCE (ENTER|LEAVE) (\S+)$/);
+      if (presenceEvent) {
+        setActivityLines((current) => [
+          ...current.slice(-11),
+          { kind: 'presence', message: `${presenceEvent[2]} ${presenceEvent[1] === 'ENTER' ? 'arrived' : 'left'}.` },
+        ]);
+        send('LOOK');
         return;
       }
 
       if (line.startsWith('OK room=')) setNotice('Walking to the next place…');
       if (line.startsWith('OK taken=')) setNotice('You picked up a shared object. Other players can no longer take it.');
       if (line.startsWith('OK dropped=')) setNotice('You left the object here for another player.');
+      const nextGroupId = line.match(/^OK group=(\S+)$/)?.[1];
+      if (nextGroupId) {
+        setGroupId(nextGroupId);
+        setGroupInvite('');
+        setNotice(`You are now in ${nextGroupId}.`);
+      }
 
       const json = parseJsonResponse(line);
       if (json && typeof json === 'object') {
         if (Array.isArray(json)) {
           if (json.every((entry) => typeof entry === 'string')) setInventory(json as string[]);
+          else if (json.every((entry) => entry && typeof entry === 'object' && 'quest_id' in entry)) {
+            setQuests(json as TapQuest[]);
+          }
           return;
         }
         const value = json as Record<string, unknown>;
@@ -265,10 +333,50 @@ export function TapStudio({
           setNotice(`You arrived at ${nextLook.room.name}.`);
           return;
         }
+        if ('npc' in value && 'dialogue' in value) {
+          const nextDialogue = value as unknown as TapDialogue;
+          setDialogue(nextDialogue);
+          setNotice(`${npcLabel(nextDialogue.npc, world)} spoke to you.`);
+          return;
+        }
+        if ('quest_id' in value) {
+          const nextQuest = value as unknown as TapQuest;
+          setQuests((current) => [
+            ...current.filter((quest) => quest.quest_id !== nextQuest.quest_id),
+            nextQuest,
+          ]);
+          setNotice(nextQuest.status === 'completed' ? 'Quest completed. Reward added to your inventory.' : 'Quest updated.');
+          return;
+        }
+        if ('damage' in value && 'status' in value) {
+          const nextCombat = value as unknown as TapCombat;
+          setCombat((current) => (
+            nextCombat.status === 'victory' || nextCombat.status === 'respawned'
+              ? null
+              : { ...current, ...nextCombat }
+          ));
+          setStatus((current) => ({
+            hp: nextCombat.attacker_hp ?? nextCombat.hp ?? current.hp,
+            max_hp: current.max_hp,
+            status: nextCombat.status === 'combat' || nextCombat.status === 'defending' ? 'combat' : 'wounded',
+          }));
+          setNotice(
+            nextCombat.status === 'victory'
+              ? 'Victory. The enemy is defeated for this shared-world session.'
+              : nextCombat.status === 'respawned'
+                ? 'You were knocked out and returned to Village Square.'
+                : 'Combat round resolved by the TAP server.',
+          );
+          return;
+        }
+        if ('hp' in value && 'max_hp' in value && 'status' in value) {
+          setStatus(value as unknown as TapStatus);
+          if (value.status !== 'combat') setCombat(null);
+          return;
+        }
       }
-      if (line.includes(' PRESENCE ')) send('LOOK');
     },
-    [refresh, send, username],
+    [refresh, send, username, world],
   );
 
   const processLineRef = useRef(processLine);
@@ -287,6 +395,12 @@ export function TapStudio({
     setSession('disconnected');
     setLook(null);
     setInventory([]);
+    setStatus({ hp: 100, max_hp: 100, status: 'healthy' });
+    setCombat(null);
+    setQuests([]);
+    setDialogue(null);
+    setGroupId('');
+    setGroupInvite('');
   }, []);
 
   useEffect(() => () => disconnect(false), [disconnect]);
@@ -301,6 +415,7 @@ export function TapStudio({
     setSession('connecting');
     setNotice('Opening the path to the shared world…');
     setChatLines([]);
+    setActivityLines([]);
     setProtocolLines([]);
     setVisited(new Set());
     const socket = new WebSocket(tapSessionUrl());
@@ -328,6 +443,7 @@ export function TapStudio({
     if (!look) return;
     const direction = Object.entries(look.room.exits).find(([, roomId]) => roomId === destination)?.[0];
     if (!direction || !send(`MOVE ${direction}`)) return;
+    setDialogue(null);
     send('LOOK');
     send('WHO');
   }
@@ -347,15 +463,65 @@ export function TapStudio({
   function sendChat() {
     const message = chatInput.trim();
     if (!message) return;
-    send(`CHAT GLOBAL ${message}`);
+    send(`CHAT ${chatScope} ${message}`);
     setChatInput('');
+  }
+
+  function talk(npc: string) {
+    setDialogue(null);
+    send(`TALK ${npc}`);
+  }
+
+  function updateQuest(npc: string) {
+    if (!send(`QUEST ${npc}`)) return;
+    send('QUESTS');
+    send('INVENTORY');
+  }
+
+  function attack(npc: string) {
+    if (!send(`ATTACK ${npc}`)) return;
+    send('STATUS');
+    send('QUESTS');
+    send('LOOK');
+  }
+
+  function defend() {
+    if (!send('DEFEND')) return;
+    send('STATUS');
+  }
+
+  function flee() {
+    if (!send('FLEE')) return;
+    setCombat(null);
+    refresh();
+  }
+
+  function createGroup() {
+    send('GROUP CREATE');
+  }
+
+  function inviteToGroup() {
+    const player = groupInput.trim();
+    if (player) send(`GROUP INVITE ${player}`);
+  }
+
+  function joinGroup(leader = groupInput.trim()) {
+    if (leader) send(`GROUP JOIN ${leader}`);
+  }
+
+  function leaveGroup() {
+    if (!send('GROUP LEAVE')) return;
+    setGroupId('');
+    setChatScope('GLOBAL');
+    setNotice('You left the group.');
   }
 
   const connected = session === 'connected';
   const currentRoom = look?.room.id ?? world?.start_room ?? '';
   const tourDone = visited.size >= 3;
   const foundObject = inventory.length > 0;
-  const latestChats = chatLines.slice(-3);
+  const latestChats = chatLines.slice(-6);
+  const activeCombat = status.status === 'combat' || combat?.status === 'combat' || combat?.status === 'defending';
 
   return (
     <article className="grid gap-6">
@@ -363,7 +529,7 @@ export function TapStudio({
         <div>
           <button className={secondaryButtonClass} onClick={onBack} type="button">← Back to gallery</button>
           <p className="mt-5 text-sm font-semibold text-[#c96442]">A tiny shared-world game</p>
-          <h3 className="mt-2 font-serif text-4xl text-[#171715] sm:text-5xl">The Answer Protocol</h3>
+          <h3 className="mt-2 font-serif text-4xl text-[#171715] sm:text-5xl">The_Answer_Protocol</h3>
           <CollapsibleDescription
             className="mt-4 max-w-3xl"
             fullText={fullDescription ?? description}
@@ -414,6 +580,10 @@ export function TapStudio({
                 <span className="relative flex h-3 w-3"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#6e7c4b] opacity-50" /><span className="relative inline-flex h-3 w-3 rounded-full bg-[#6e7c4b]" /></span>
                 <p className="text-sm font-semibold text-[#171715]">Shared world is live</p>
                 <span className="text-sm text-[#8b8174]">{online} online</span>
+                <span className="rounded-full bg-[#fffdf8] px-3 py-1 text-xs font-semibold text-[#5e5d59]">
+                  HP {status.hp}/{status.max_hp}
+                </span>
+                {groupId ? <span className="rounded-full bg-[#e8edf4] px-3 py-1 text-xs font-semibold text-[#36506b]">{groupId}</span> : null}
               </div>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-[#fffdf8] px-3 py-1 text-sm font-semibold text-[#5e5d59]">● {username}</span>
@@ -475,22 +645,141 @@ export function TapStudio({
                   ) : null}
                 </div>
 
+                <div>
+                  <p className="text-sm font-semibold text-[#171715]">People & creatures</p>
+                  <div className="mt-2 grid gap-2">
+                    {look.npcs.length ? look.npcs.map((npcId) => {
+                      const npc = world.npcs[npcId];
+                      return (
+                        <div className="rounded-xl border border-[#e8e3d6] bg-[#faf9f5] p-3" key={npcId}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-[#171715]">{npcLabel(npcId, world)}</p>
+                              <p className="mt-1 text-xs leading-5 text-[#8b8174]">{npc?.description}</p>
+                            </div>
+                            {npc?.hostile ? <span className="rounded-full bg-[#f8ded7] px-2 py-1 text-[11px] font-bold text-[#9d3f2b]">HOSTILE</span> : null}
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button className={secondaryButtonClass} onClick={() => talk(npcId)} type="button">Talk</button>
+                            {npc?.quest ? <button className={secondaryButtonClass} onClick={() => updateQuest(npcId)} type="button">Quest</button> : null}
+                            {npc?.hostile ? <button className={buttonClass} onClick={() => attack(npcId)} type="button">Attack</button> : null}
+                          </div>
+                        </div>
+                      );
+                    }) : <p className="text-sm text-[#8b8174]">Nobody else is here.</p>}
+                  </div>
+                  {dialogue ? (
+                    <blockquote className="mt-3 rounded-xl border-l-4 border-[#b98b45] bg-[#f8f0dc] px-4 py-3 text-sm italic leading-6 text-[#5e5034]">
+                      “{dialogue.dialogue}” <span className="mt-1 block text-xs font-semibold not-italic">— {npcLabel(dialogue.npc, world)}</span>
+                    </blockquote>
+                  ) : null}
+                </div>
+
+                {activeCombat ? (
+                  <div className="rounded-2xl border border-[#e4b4a7] bg-[#fbede9] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9d3f2b]">Combat</p>
+                        <p className="mt-1 text-sm font-semibold text-[#171715]">
+                          {combat?.target ? npcLabel(combat.target, world) : 'Enemy engaged'}
+                        </p>
+                      </div>
+                      {combat?.target_hp !== undefined ? <span className="text-sm font-semibold text-[#9d3f2b]">Enemy HP {combat.target_hp}</span> : null}
+                    </div>
+                    <p className="mt-2 text-sm text-[#754c43]">Your HP: {status.hp}/{status.max_hp}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {combat?.target ? <button className={buttonClass} onClick={() => attack(combat.target!)} type="button">Attack again</button> : null}
+                      <button className={secondaryButtonClass} onClick={defend} type="button">Defend</button>
+                      <button className={secondaryButtonClass} onClick={flee} type="button">Flee</button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="rounded-2xl bg-[#f4f1e8] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-[#171715]">Quest journal</p>
+                    <button className="text-xs font-semibold text-[#8b8174] underline decoration-dotted underline-offset-4" onClick={() => send('QUESTS')} type="button">Refresh</button>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {quests.length ? quests.map((quest) => (
+                      <div className="rounded-xl bg-[#fffdf8] p-3" key={quest.quest_id}>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-[#6e7c4b]">{quest.status.replaceAll('_', ' ')}</p>
+                          <span className="text-xs font-semibold text-[#8b8174]">{quest.progress}</span>
+                        </div>
+                        <p className="mt-2 text-sm leading-5 text-[#5e5d59]">{quest.description}</p>
+                        <p className="mt-2 text-xs text-[#8b8174]">Reward: {itemLabel(quest.reward, world)}</p>
+                      </div>
+                    )) : <p className="text-sm text-[#8b8174]">Talk to a quest giver to begin.</p>}
+                  </div>
+                </div>
+
                 <p className="rounded-xl bg-[#f4f1e8] px-4 py-3 text-sm leading-6 text-[#5e5d59]" role="status">{notice}</p>
               </aside>
             </div>
 
             <div className="border-t border-[#ece8dc] bg-[#fffdf8] p-5 sm:p-6">
-              <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#c96442]">Campfire chat</p><p className="mt-1 text-sm text-[#5e5d59]">Messages appear for everyone in the shared world.</p></div>
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+                <div>
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#c96442]">Live chat</p>
+                      <p className="mt-1 text-sm text-[#5e5d59]">Speak to everyone, this room, or only your group.</p>
+                    </div>
+                    <div className="flex rounded-lg bg-[#f4f1e8] p-1" aria-label="Chat channel">
+                      {(['GLOBAL', 'ROOM', 'GROUP'] as ChatScope[]).map((scope) => (
+                        <button
+                          className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${chatScope === scope ? 'bg-[#fffdf8] text-[#c96442] shadow-sm' : 'text-[#8b8174]'}`}
+                          disabled={scope === 'GROUP' && !groupId}
+                          key={scope}
+                          onClick={() => setChatScope(scope)}
+                          type="button"
+                        >
+                          {scope === 'GLOBAL' ? 'Global' : scope === 'ROOM' ? 'Room' : 'Group'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
               <div className="mt-4 flex min-h-16 flex-wrap items-end gap-3">
                 {latestChats.length ? latestChats.map((line, index) => (
                   <div className="max-w-sm rounded-2xl rounded-bl-sm bg-[#f4f1e8] px-4 py-3" key={`${line.player}-${index}`}>
-                    <p className="text-xs font-semibold text-[#c96442]">{line.player}</p><p className="mt-1 text-sm text-[#3d3d3a]">{line.message}</p>
+                    <p className="text-xs font-semibold text-[#c96442]">{line.player} · {line.channel.toLowerCase()}</p><p className="mt-1 text-sm text-[#3d3d3a]">{line.message}</p>
                   </div>
-                )) : <p className="text-sm text-[#8b8174]">The campfire is quiet. Say hello.</p>}
+                )) : <p className="text-sm text-[#8b8174]">The channels are quiet. Say hello.</p>}
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <input aria-label="Chat message" className="min-h-11 rounded-xl border border-[#d8d1c2] bg-[#faf9f5] px-4 outline-none focus:border-[#c96442]" maxLength={900} onChange={(event) => setChatInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') sendChat(); }} placeholder="Say something to the world…" value={chatInput} />
+                  <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <input aria-label="Chat message" className="min-h-11 rounded-xl border border-[#d8d1c2] bg-[#faf9f5] px-4 outline-none focus:border-[#c96442]" maxLength={900} onChange={(event) => setChatInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') sendChat(); }} placeholder={`Message ${chatScope.toLowerCase()}…`} value={chatInput} />
                 <button className={buttonClass} disabled={!chatInput.trim()} onClick={sendChat} type="button">Send bubble</button>
+                  </div>
+                </div>
+
+                <aside className="rounded-2xl border border-[#e8e3d6] bg-[#f4f1e8] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#36506b]">Party</p>
+                      <p className="mt-1 text-sm font-semibold text-[#171715]">{groupId || 'No group yet'}</p>
+                    </div>
+                    {groupId ? <button className={secondaryButtonClass} onClick={leaveGroup} type="button">Leave</button> : <button className={secondaryButtonClass} onClick={createGroup} type="button">Create</button>}
+                  </div>
+                  {groupInvite ? (
+                    <div className="mt-3 rounded-xl border border-[#b9c8d8] bg-[#eef3f8] p-3 text-sm text-[#36506b]">
+                      <p><strong>{groupInvite}</strong> invited you.</p>
+                      <button className="mt-2 font-semibold underline underline-offset-4" onClick={() => joinGroup(groupInvite)} type="button">Join their group</button>
+                    </div>
+                  ) : null}
+                  <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-[#8b8174]" htmlFor="tap-group-player">Player or leader</label>
+                  <input className="mt-2 min-h-10 w-full rounded-lg border border-[#d8d1c2] bg-[#fffdf8] px-3 text-sm outline-none focus:border-[#36506b]" id="tap-group-player" onChange={(event) => setGroupInput(event.target.value)} placeholder="Player name" value={groupInput} />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button className={secondaryButtonClass} disabled={!groupId || !groupInput.trim()} onClick={inviteToGroup} type="button">Invite</button>
+                    <button className={secondaryButtonClass} disabled={Boolean(groupId) || !groupInput.trim()} onClick={() => joinGroup()} type="button">Join leader</button>
+                  </div>
+                  {activityLines.length ? (
+                    <div className="mt-4 border-t border-[#d8d1c2] pt-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8b8174]">World activity</p>
+                      {activityLines.slice(-4).map((activity, index) => <p className="mt-2 text-xs leading-5 text-[#5e5d59]" key={`${activity.message}-${index}`}>{activity.message}</p>)}
+                    </div>
+                  ) : null}
+                </aside>
               </div>
             </div>
           </section>

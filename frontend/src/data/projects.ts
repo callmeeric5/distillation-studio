@@ -18,7 +18,7 @@ export const tabs: Array<{ key: TabKey; label: string }> = [
 
 export const projects42: Project[] = [
   {
-    title: 'The Answer Protocol',
+    title: 'The_Answer_Protocol',
     category: '42 project',
     language: 'Rust / TCP / WebSocket',
     status: 'ready',

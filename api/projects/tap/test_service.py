@@ -121,7 +121,25 @@ def test_websocket_bridges_two_players_and_rejects_injected_lines(monkeypatch) -
                 alice.send_json({"kind": "command", "line": "CHAT GLOBAL hello bob"})
                 receive_line(bob, "EVT GLOBAL CHAT alice hello bob")
 
+                alice.send_json({"kind": "command", "line": "CHAT ROOM same room"})
+                receive_line(bob, "EVT ROOM CHAT alice same room")
+
+                alice.send_json({"kind": "command", "line": "GROUP CREATE"})
+                receive_line(alice, "OK group=group-1")
+                alice.send_json({"kind": "command", "line": "GROUP INVITE bob"})
+                receive_line(bob, "EVT GROUP INVITE alice")
+                bob.send_json({"kind": "command", "line": "GROUP JOIN alice"})
+                receive_line(bob, "OK group=group-1")
+                receive_line(alice, "EVT GROUP JOIN bob")
+                bob.send_json({"kind": "command", "line": "CHAT GROUP party hello"})
+                receive_line(alice, "EVT GROUP CHAT bob party hello")
+
                 bob.send_json({"kind": "command", "line": "LOOK\nWHO"})
-                error = bob.receive_json()
+                for _ in range(12):
+                    error = bob.receive_json()
+                    if error["kind"] == "gateway_error":
+                        break
+                else:
+                    raise AssertionError("Did not receive gateway validation error")
                 assert error["kind"] == "gateway_error"
                 assert "control character" in error["detail"]

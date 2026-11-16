@@ -32,6 +32,27 @@ export type TapQuest = {
   progress: string;
 };
 
+export type TapStatus = {
+  hp: number;
+  max_hp: number;
+  status: 'healthy' | 'wounded' | 'combat';
+};
+
+export type TapCombat = {
+  attacker_hp?: number;
+  hp?: number;
+  target?: string;
+  target_hp?: number;
+  damage: number;
+  counter_damage?: number;
+  status: 'combat' | 'victory' | 'respawned' | 'defending';
+};
+
+export type TapDialogue = {
+  npc: string;
+  dialogue: string;
+};
+
 export async function fetchTapWorld() {
   const response = await fetch('/api/projects/tap/world');
   const data = (await response.json()) as TapWorld & { detail?: string };
